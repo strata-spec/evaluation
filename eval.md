@@ -152,7 +152,6 @@ python -m src.eval \
   --semantic config/semantic.yaml \
   --corrections config/corrections.yaml \
   --questions questions/omdb.yaml \
-  --model claude-sonnet-4-20250514 \
   --output results/
 
 # Or from src/ directory  
@@ -161,17 +160,17 @@ python eval.py \
   --semantic ../config/semantic.yaml \
   --corrections ../config/corrections.yaml \
   --questions ../questions/omdb.yaml \
-  --model claude-sonnet-4-20250514 \
   --output ../results/
 
 # Optional flags
+--model deepseek-chat    # override model (default: EVAL_MODEL env or deepseek-chat)
 --tier simple          # single tier only
 --baseline-only        # skip strata condition
 --strata-only          # skip baseline condition
 ```
 
 ## Dependencies
-`anthropic` · `psycopg2` · `pyyaml` · `sqlglot`
+`openai` · `psycopg2` · `pyyaml` · `sqlglot`
 
 ## Invariants
 1. Never modify `semantic.yaml` or `corrections.yaml` — eval is read-only

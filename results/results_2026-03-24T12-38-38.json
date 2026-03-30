@@ -1,0 +1,28 @@
+[
+  {
+    "id": "q001",
+    "tier": "simple",
+    "condition": "baseline",
+    "natural_language": "How many movies are in the database?",
+    "generated_sql": "SELECT COUNT(*) FROM movies;",
+    "reference_sql": "SELECT COUNT(*) FROM movies",
+    "execution_success": true,
+    "result_match": true,
+    "schema_link_correct": true,
+    "failure_mode": null,
+    "notes": "Unambiguous single table. Baseline and Strata should both pass."
+  },
+  {
+    "id": "q001",
+    "tier": "simple",
+    "condition": "strata",
+    "natural_language": "How many movies are in the database?",
+    "generated_sql": "SELECT COUNT(*) FROM movies;",
+    "reference_sql": "SELECT COUNT(*) FROM movies",
+    "execution_success": true,
+    "result_match": true,
+    "schema_link_correct": true,
+    "failure_mode": null,
+    "notes": "Unambiguous single table. Baseline and Strata should both pass."
+  }
+]

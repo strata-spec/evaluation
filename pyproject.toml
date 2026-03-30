@@ -1,0 +1,11 @@
+[project]
+name = "eval"
+version = "0.1.0"
+description = "Strata eval scaffold"
+requires-python = ">=3.11"
+dependencies = [
+    "anthropic",
+    "psycopg2-binary",
+    "pyyaml",
+    "sqlglot",
+]

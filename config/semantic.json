@@ -1,0 +1,3664 @@
+{
+  "smif_version": "0.1.0",
+  "generated_at": "2026-03-30T10:02:54Z",
+  "tool_version": "strata/0.1.0-alpha",
+  "source": {
+    "type": "postgres",
+    "host_fingerprint": "b3269267e7386c9e",
+    "schema_names": [
+      "public"
+    ]
+  },
+  "domain": {
+    "name": "Movie Database",
+    "description": "This is a comprehensive movie database system designed to catalog films and their associated metadata for entertainment industry or consumer applications. The database stores detailed information about movies including cast and crew, categorization, multilingual content, and cross-references between films. It appears to support internationalization with multilingual abstracts, aliases, and job titles, suggesting use for a global movie information service or streaming platform.",
+    "key_concepts": [
+      "Movies",
+      "People (Cast/Crew)",
+      "Categories/Genres",
+      "Multilingual Content",
+      "Job Roles",
+      "Movie References",
+      "Trailers"
+    ],
+    "temporal_model": {
+      "note": "reference-data"
+    },
+    "known_gotchas": [
+      "movie_keywords table references category_id suggesting categories and keywords may be conflated",
+      "Separate abstract tables by language (movie_abstracts_*) indicates potential denormalization rather than using a single table with language column",
+      "access_log table has no primary key which is unusual for logging",
+      "casts table uses composite PK with 'position' suggesting multiple people can have same role on same movie"
+    ],
+    "provenance": {
+      "source_type": "llm_inferred",
+      "confidence": 0.8,
+      "human_reviewed": false
+    }
+  },
+  "models": [
+    {
+      "model_id": "access_log",
+      "name": "access_log",
+      "label": "Access Log",
+      "description": "This table captures web server access logs for the movie database application, recording each HTTP request made by users or systems accessing the platform. Each row represents a single page or API endpoint access event, including the timestamp, client IP address, the specific page or resource requested, the full URL path, and the response time. This data is typically used for monitoring application performance, analyzing user behavior patterns, debugging issues, and generating usage analytics for the movie database service.",
+      "physical_source": {
+        "schema": "public",
+        "table": "access_log"
+      },
+      "primary_key": null,
+      "ddl_fingerprint": "sha256:617925e1be80fbbfc6e7783936e702a9331c6cd53c08188bd44ef7ca513efaa0",
+      "columns": [
+        {
+          "name": "time",
+          "data_type": "timestamp with time zone",
+          "role": "timestamp",
+          "label": "Request Time",
+          "description": "The timestamp when the HTTP request was made to the movie database application. This represents the exact date and time of each access event and is crucial for temporal analysis of usage patterns.",
+          "nullable": false,
+          "cardinality_category": "low",
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "client_ip",
+          "data_type": "inet",
+          "role": "dimension",
+          "label": "Client IP Address",
+          "description": "The IP address of the client that made the HTTP request. This can be used to identify unique users or systems, analyze geographic usage patterns, or detect suspicious activity. May be null for certain types of requests or privacy reasons.",
+          "nullable": true,
+          "cardinality_category": "low",
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "page",
+          "data_type": "text",
+          "role": "dimension",
+          "label": "Page Name",
+          "description": "The specific page or endpoint that was accessed within the movie database application. This represents the logical page identifier and is used for analyzing which parts of the application are most frequently visited.",
+          "nullable": false,
+          "cardinality_category": "low",
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "path",
+          "data_type": "text",
+          "role": "dimension",
+          "label": "URL Path",
+          "description": "The full URL path of the HTTP request made to the movie database application. This provides the complete resource path and query parameters, offering more detailed information than the page field for debugging and analysis.",
+          "nullable": false,
+          "cardinality_category": "low",
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "runtime",
+          "data_type": "double precision",
+          "role": "measure",
+          "label": "Response Time",
+          "description": "The time in seconds (or milliseconds) it took for the server to process and respond to the HTTP request. This metric is used for performance monitoring and identifying slow-performing pages or API endpoints. May be null for incomplete requests.",
+          "nullable": true,
+          "cardinality_category": "low",
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        }
+      ],
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      },
+      "x_properties": {
+        "grain": "One row per HTTP request or page access event to the movie database application"
+      }
+    },
+    {
+      "model_id": "casts",
+      "name": "casts",
+      "label": "Casts",
+      "description": "This table represents the cast and crew assignments for movies, storing information about who worked on each film and in what capacity. Each row captures a specific person's role in a particular movie, including their job type (actor, director, producer, etc.) and specific role details. The table enables tracking of all personnel involved in movie production, supporting queries about who worked on what films and facilitating cast/crew listings for the movie database system.",
+      "physical_source": {
+        "schema": "public",
+        "table": "casts"
+      },
+      "primary_key": [
+        "movie_id",
+        "person_id",
+        "job_id",
+        "role",
+        "position"
+      ],
+      "ddl_fingerprint": "sha256:f54d9196b929ccd92a1f6e61017a7b060314c9c16615c986f157c9054a370135",
+      "columns": [
+        {
+          "name": "movie_id",
+          "data_type": "bigint",
+          "role": "identifier",
+          "label": "Movie ID",
+          "description": "Foreign key reference to the movies table, identifying which movie this cast/crew assignment is for. Part of the composite primary key that uniquely identifies each person's role in a specific movie.",
+          "nullable": false,
+          "cardinality_category": "medium",
+          "example_values": [
+            "33",
+            "59",
+            "65",
+            "74",
+            "75",
+            "81",
+            "87",
+            "9",
+            "91",
+            "98"
+          ],
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "person_id",
+          "data_type": "bigint",
+          "role": "identifier",
+          "label": "Person ID",
+          "description": "Foreign key reference to the people table, identifying the specific person (actor, director, crew member) involved in this movie role. Part of the composite primary key.",
+          "nullable": false,
+          "cardinality_category": "medium",
+          "example_values": [
+            "190",
+            "227",
+            "335",
+            "500",
+            "510",
+            "631",
+            "696",
+            "815",
+            "867",
+            "951"
+          ],
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "job_id",
+          "data_type": "bigint",
+          "role": "identifier",
+          "label": "Job ID",
+          "description": "Foreign key reference to the jobs table, identifying the type of job or position this person held on the movie (e.g., actor, director, producer). Part of the composite primary key.",
+          "nullable": false,
+          "cardinality_category": "medium",
+          "example_values": [
+            "13",
+            "15",
+            "159",
+            "16",
+            "17",
+            "21",
+            "23",
+            "27",
+            "33",
+            "40"
+          ],
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "role",
+          "data_type": "text",
+          "role": "dimension",
+          "label": "Role",
+          "description": "The specific character name or role title that the person played or performed in the movie. Can be empty for some crew positions. Examples include character names for actors or specific job titles for crew members.",
+          "nullable": false,
+          "cardinality_category": "medium",
+          "example_values": [
+            "",
+            "Brandt",
+            "Brick Top Polford",
+            "Greg Buehl",
+            "Karol Karol",
+            "Mrs. Beauregard",
+            "Phroso",
+            "Ray Ferrier",
+            "Richie Cusack",
+            "Wu Han"
+          ],
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "position",
+          "data_type": "integer",
+          "role": "dimension",
+          "label": "Position",
+          "description": "Numeric indicator of the person's billing order or importance within their job category on the movie. Lower numbers typically indicate higher billing or more prominent roles. Part of the composite primary key.",
+          "nullable": false,
+          "cardinality_category": "low",
+          "example_values": [
+            "1",
+            "12",
+            "14",
+            "19",
+            "2",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8"
+          ],
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        }
+      ],
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      },
+      "x_properties": {
+        "grain": "One row per person-movie-job-role-position combination"
+      }
+    },
+    {
+      "model_id": "categories",
+      "name": "categories",
+      "label": "Categories",
+      "description": "This table represents a hierarchical categorization system for organizing movies and related content within the movie database. Each row defines a specific category or genre that can be used to classify films, with support for nested subcategories through parent-child relationships. The table enables the creation of taxonomies where categories can have multiple levels of organization, from broad top-level genres down to more specific subcategories.",
+      "physical_source": {
+        "schema": "public",
+        "table": "categories"
+      },
+      "primary_key": [
+        "id"
+      ],
+      "ddl_fingerprint": "sha256:ae99562ae87c06bec6e8d9d5e9b572f423ddaeb84a2a5c8d185fac52b9cd87ed",
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "bigint",
+          "role": "identifier",
+          "label": "Category ID",
+          "description": "Primary key uniquely identifying each category or subcategory in the hierarchical classification system. Each category gets a unique numeric identifier regardless of its position in the hierarchy.",
+          "nullable": false,
+          "cardinality_category": "medium",
+          "example_values": [
+            "1011",
+            "1049",
+            "1358",
+            "1684",
+            "1799",
+            "291",
+            "524",
+            "553",
+            "611",
+            "680"
+          ],
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "parent_id",
+          "data_type": "bigint",
+          "role": "identifier",
+          "label": "Parent Category ID",
+          "description": "Foreign key reference to another category that serves as the parent in the hierarchical structure. Enables creation of nested category trees where subcategories can be organized under broader parent categories.",
+          "nullable": true,
+          "cardinality_category": "medium",
+          "example_values": [
+            "1053",
+            "2127",
+            "279",
+            "3786",
+            "4439",
+            "511",
+            "6190",
+            "6205",
+            "738",
+            "876"
+          ],
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "root_id",
+          "data_type": "bigint",
+          "role": "identifier",
+          "label": "Root Category ID",
+          "description": "Foreign key reference to the top-level category in the hierarchy tree. With only 6 distinct values, this likely represents the main genre classifications that all subcategories ultimately roll up to.",
+          "nullable": true,
+          "cardinality_category": "low",
+          "example_values": [
+            "1",
+            "2",
+            "3",
+            "6",
+            "8",
+            "9"
+          ],
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "name",
+          "data_type": "text",
+          "role": "dimension",
+          "label": "Category Name",
+          "description": "The human-readable name or label for the category. Examples show a mix of general themes, specific plot elements, locations, and cinematic movements, indicating this supports very granular movie categorization.",
+          "nullable": true,
+          "cardinality_category": "medium",
+          "example_values": [
+            "Bauernhof",
+            "Circus",
+            "Colour-Blindness",
+            "Flucht aus dem Gefängnis",
+            "Gay Sex Scene",
+            "Hobbits",
+            "Montana",
+            "New German Film",
+            "Schutzstaffel",
+            "Super Hero"
+          ],
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        }
+      ],
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      },
+      "x_properties": {
+        "grain": "One row per movie category or subcategory in the hierarchical classification system."
+      }
+    },
+    {
+      "model_id": "category_names",
+      "name": "category_names",
+      "label": "Category Names",
+      "description": "This table stores multilingual names for movie categories, enabling the database to display category information in different languages. Each row represents a specific category name in a particular language, linking back to the main categories table. This supports internationalization by allowing the same movie category to have names in multiple languages, which is essential for a global movie database or streaming platform.",
+      "physical_source": {
+        "schema": "public",
+        "table": "category_names"
+      },
+      "primary_key": [
+        "category_id",
+        "language"
+      ],
+      "ddl_fingerprint": "sha256:99a6e16ecb54f1ea0c8a0f6b279596f7dcb8b10a2be5bceff99d774a5645f914",
+      "columns": [
+        {
+          "name": "category_id",
+          "data_type": "bigint",
+          "role": "identifier",
+          "label": "Category ID",
+          "description": "Foreign key reference to the categories table. Identifies which movie category this name translation belongs to.",
+          "nullable": false,
+          "cardinality_category": "medium",
+          "example_values": [
+            "124",
+            "128",
+            "134",
+            "138",
+            "157",
+            "18",
+            "365",
+            "49",
+            "69",
+            "76"
+          ],
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "name",
+          "data_type": "text",
+          "role": "dimension",
+          "label": "Category Name",
+          "description": "The translated name of the movie category in the specified language. Examples show names in various languages including German, English, Spanish, French, Italian, and Polish.",
+          "nullable": true,
+          "cardinality_category": "medium",
+          "example_values": [
+            "Beziehungsdreieck",
+            "Coming of Age",
+            "Drama",
+            "Film o tematyce wojskowej",
+            "Ghost Train",
+            "Justice Drama",
+            "Slapstick",
+            "Splatter / Cine gore",
+            "Thriller conspirationniste",
+            "film culte"
+          ],
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "language",
+          "data_type": "text",
+          "role": "dimension",
+          "label": "Language Code",
+          "description": "Language code (appears to be ISO 639-1 format) indicating the language of the category name translation. Used as part of the composite primary key along with category_id.",
+          "nullable": false,
+          "cardinality_category": "low",
+          "example_values": [
+            "de",
+            "en",
+            "es",
+            "fr",
+            "it",
+            "pl"
+          ],
+          "valid_values": [
+            "de",
+            "en",
+            "es",
+            "fr",
+            "it",
+            "pl",
+            "xx"
+          ],
+          "case_sensitive": true,
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        }
+      ],
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      },
+      "x_properties": {
+        "grain": "One row per category name in each language"
+      }
+    },
+    {
+      "model_id": "image_ids",
+      "name": "image_ids",
+      "label": "Image Ids",
+      "description": "This table stores unique identifiers for images associated with various objects in the movie database system. Each row represents a specific image version linked to an object (such as a movie, person, or other entity) through the object_id and object_type fields. The table serves as a central registry for managing different versions of images across the movie database, enabling the system to track and reference visual content like movie posters, actor headshots, or promotional materials.",
+      "physical_source": {
+        "schema": "public",
+        "table": "image_ids"
+      },
+      "primary_key": [
+        "id"
+      ],
+      "ddl_fingerprint": "sha256:6cc2702defd93d0311c49ac097390079953dd083ebfd6d8d4b1b0d25fdae90b5",
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "bigint",
+          "role": "identifier",
+          "label": "Image ID",
+          "description": "Primary key uniquely identifying each image record in the system. This is a surrogate key that serves as the main identifier for image entries.",
+          "nullable": false,
+          "cardinality_category": "medium",
+          "example_values": [
+            "124",
+            "207",
+            "308",
+            "314",
+            "422",
+            "478",
+            "517",
+            "682",
+            "708",
+            "751"
+          ],
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "object_id",
+          "data_type": "bigint",
+          "role": "identifier",
+          "label": "Object ID",
+          "description": "Foreign key reference to the specific object (movie, person, category, or character) that this image is associated with. Links to the primary key of the corresponding object table.",
+          "nullable": true,
+          "cardinality_category": "medium",
+          "example_values": [
+            "1247",
+            "1658",
+            "1776",
+            "22",
+            "2436",
+            "2746",
+            "321",
+            "345",
+            "417",
+            "73"
+          ],
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "object_type",
+          "data_type": "text",
+          "role": "dimension",
+          "label": "Object Type",
+          "description": "Categorical field indicating the type of entity this image represents. Values include Category, Character, Movie, and Person, which determines which table the object_id references.",
+          "nullable": true,
+          "cardinality_category": "low",
+          "example_values": [
+            "Category",
+            "Character",
+            "Movie",
+            "Person"
+          ],
+          "valid_values": [
+            "Category",
+            "Character",
+            "Company",
+            "Globalize::Country",
+            "Job",
+            "Movie",
+            "Person",
+            "User"
+          ],
+          "case_sensitive": true,
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "image_version",
+          "data_type": "integer",
+          "role": "dimension",
+          "label": "Image Version",
+          "description": "Version number for the image, allowing multiple versions of the same image to be stored for a given object. Higher numbers likely represent newer or updated versions of the image.",
+          "nullable": true,
+          "cardinality_category": "low",
+          "example_values": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "7"
+          ],
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        }
+      ],
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      },
+      "x_properties": {
+        "grain": "One row per image identifier for a specific object and image version combination."
+      }
+    },
+    {
+      "model_id": "image_licenses",
+      "name": "image_licenses",
+      "label": "Image Licenses",
+      "description": "This table stores licensing and attribution information for images used in the movie database. Each row represents the legal rights and source information for a specific image, including where the image was sourced from, the applicable license terms, and the original author or creator. This table enables the database to properly track usage rights and provide appropriate attribution for copyrighted visual content associated with movies.",
+      "physical_source": {
+        "schema": "public",
+        "table": "image_licenses"
+      },
+      "primary_key": [
+        "image_id"
+      ],
+      "ddl_fingerprint": "sha256:5c9838781896922d437d412490bce226bfc17712d3f88faf82c213c63ff683c1",
+      "columns": [
+        {
+          "name": "image_id",
+          "data_type": "bigint",
+          "role": "identifier",
+          "label": "Image ID",
+          "description": "Primary key that identifies a specific image record, also serving as a foreign key reference to the image_ids table. Each value represents a unique image in the movie database system.",
+          "nullable": false,
+          "cardinality_category": "medium",
+          "example_values": [
+            "1",
+            "1014",
+            "1035",
+            "112",
+            "1264",
+            "1334",
+            "221",
+            "378",
+            "459",
+            "918"
+          ],
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "source",
+          "data_type": "text",
+          "role": "dimension",
+          "label": "Image Source",
+          "description": "The original source location or website where the image was obtained from, such as Wikipedia, Wikimedia Commons, or other web sources. Many values are empty or contain only whitespace, indicating missing source attribution.",
+          "nullable": true,
+          "cardinality_category": "medium",
+          "example_values": [
+            "",
+            " ",
+            "  ",
+            "en.wikipedia.org",
+            "http://commons.wikimedia.org/wiki/File:Jean_Rochefort_Cannes.jpg",
+            "http://commons.wikimedia.org/wiki/File:JunJihyun2009.jpg",
+            "http://commons.wikimedia.org/wiki/File:Maggie_Cheung2.jpg",
+            "http://de.wikipedia.org/wiki/Datei:Limahl_crop_audley.jpg",
+            "http://www.impawards.com/1956/man_who_knew_too_much.html",
+            "www.cnn.com"
+          ],
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "license_id",
+          "data_type": "bigint",
+          "role": "identifier",
+          "label": "License ID",
+          "description": "Foreign key identifier that references a specific license type or agreement governing the usage rights for the image. The relatively small number of distinct values suggests a standardized set of license categories.",
+          "nullable": true,
+          "cardinality_category": "low",
+          "example_values": [
+            "0",
+            "21",
+            "22",
+            "41",
+            "43",
+            "44",
+            "45",
+            "46",
+            "47",
+            "48"
+          ],
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "author",
+          "data_type": "text",
+          "role": "dimension",
+          "label": "Image Author",
+          "description": "The original creator, photographer, or copyright holder of the image. High null rate indicates that author information is frequently missing or unknown for many images in the database.",
+          "nullable": true,
+          "cardinality_category": "low",
+          "example_values": [
+            "Baldwin Saintilus",
+            "Drama League",
+            "Edmond Frederik",
+            "Georges Biard",
+            "Hyoh",
+            "Kanaka's Paradise Life from Honolulu, Hawaii",
+            "Kristin Dos Santos",
+            "Maciej Zgadzaj",
+            "Movie Company",
+            "Roger Wo"
+          ],
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        }
+      ],
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      },
+      "x_properties": {
+        "grain": "One row per image license agreement or attribution record"
+      }
+    },
+    {
+      "model_id": "job_names",
+      "name": "job_names",
+      "label": "Job Names",
+      "description": "This table stores multilingual names for job titles in the movie industry. Each row represents the localized name of a specific job role (referenced from the jobs table) in a particular language. This enables the movie database to display job titles like \"Director\", \"Producer\", or \"Cinematographer\" in different languages for international users, supporting the system's multilingual capabilities for global movie information services or streaming platforms.",
+      "physical_source": {
+        "schema": "public",
+        "table": "job_names"
+      },
+      "primary_key": [
+        "job_id",
+        "language"
+      ],
+      "ddl_fingerprint": "sha256:24943356d1fd5ce43990b33e25fa79ae0a55cb216c1578ae08af8273f02cba22",
+      "columns": [
+        {
+          "name": "job_id",
+          "data_type": "bigint",
+          "role": "identifier",
+          "label": "Job ID",
+          "description": "Foreign key referencing the jobs table. Identifies the specific job role for which this localized name applies. This column, combined with language, forms the composite primary key.",
+          "nullable": false,
+          "cardinality_category": "low",
+          "example_values": [
+            "265",
+            "270",
+            "323",
+            "329",
+            "342",
+            "423",
+            "482",
+            "521",
+            "574",
+            "599"
+          ],
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "name",
+          "data_type": "text",
+          "role": "dimension",
+          "label": "Job Name",
+          "description": "The localized name of the job title in the specified language. Contains translated job titles like 'Director', 'Producer', or 'Boom Operator' for international display purposes.",
+          "nullable": true,
+          "cardinality_category": "low",
+          "example_values": [
+            "Additional Character Design",
+            "Banda sonora adicional",
+            "Boom Operator",
+            "Character Technical Supervisor",
+            "Executive In Charge Of Post Production",
+            "Layout Department Coordinator",
+            "Loader",
+            "Post producción de Consultoría",
+            "Story Consultant",
+            "Transportation Captain"
+          ],
+          "valid_values": [
+            "1. Regieassistenz",
+            "2. Produktionsbuchhaltung Assistenz",
+            "2. Regieassistenz",
+            "24 Frame Playback",
+            "3. Kamerassistenz",
+            "3. Regieassistenz",
+            "3D Artist",
+            "4. Regieassistenz",
+            "ADR \u0026 Dubbing",
+            "ADR Dialogue Supervisor",
+            "ADR Editor",
+            "ADR Mixer",
+            "ADR Recordist",
+            "ADR Voice Cast",
+            "ADR y doblaje",
+            "Accounting Production Assistant",
+            "Acknowledgment",
+            "Acteur",
+            "Acteurs",
+            "Acting Coach",
+            "Action Coordinator",
+            "Actor",
+            "Actor cinematográfico",
+            "Actor de voz",
+            "Actor's Assistant",
+            "Actores",
+            "Actors",
+            "Adaptación",
+            "Adaptacja",
+            "Adaptation",
+            "Adaption",
+            "Additional Assistant Director",
+            "Additional Boom Operator",
+            "Additional Camera",
+            "Additional Casting",
+            "Additional Character Design",
+            "Additional Dialogue",
+            "Additional Editing",
+            "Additional Editorial Assistant",
+            "Additional Effects Development",
+            "Additional Layout",
+            "Additional Lighting",
+            "Additional Music",
+            "Additional Music Supervisor",
+            "Additional Photography",
+            "Additional Screenplay Material",
+            "Additional Set Dressing",
+            "Additional Sound",
+            "Additional Soundtrack",
+            "Additional Story Material"
+          ],
+          "case_sensitive": true,
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "language",
+          "data_type": "text",
+          "role": "identifier",
+          "label": "Language",
+          "description": "Language code (appears to be ISO 639-1 format like 'en', 'es', 'de') indicating the language of the job name. This column, combined with job_id, forms the composite primary key.",
+          "nullable": false,
+          "cardinality_category": "low",
+          "example_values": [
+            "de",
+            "en",
+            "es"
+          ],
+          "valid_values": [
+            "de",
+            "en",
+            "es",
+            "fr",
+            "pl"
+          ],
+          "case_sensitive": true,
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        }
+      ],
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      },
+      "x_properties": {
+        "grain": "One row per job title per language."
+      }
+    },
+    {
+      "model_id": "jobs",
+      "name": "jobs",
+      "label": "Jobs",
+      "description": "This table serves as a reference catalog of job titles and roles within the movie industry. Each row represents a distinct professional role or position that can be associated with film production, such as director, actor, cinematographer, producer, or other crew positions. The table provides a standardized lookup for job classifications used throughout the movie database system to categorize the various roles people play in film production.",
+      "physical_source": {
+        "schema": "public",
+        "table": "jobs"
+      },
+      "primary_key": [
+        "id"
+      ],
+      "ddl_fingerprint": "sha256:2451c7329cf511cd54069669e06130d7a535ac403b16614bfcca227ecc8c0e6e",
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "bigint",
+          "role": "identifier",
+          "label": "Job ID",
+          "description": "Primary key uniquely identifying each job title or professional role in the movie industry. This is a surrogate key used for referencing job positions in other parts of the database system.",
+          "nullable": false,
+          "cardinality_category": "low",
+          "example_values": [
+            "159",
+            "884",
+            "897",
+            "904"
+          ],
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "name",
+          "data_type": "text",
+          "role": "dimension",
+          "label": "Job Name",
+          "description": "The standardized name or title of the job role in movie production, such as 'Director', 'Actor', 'Cinematographer', or other crew positions. This serves as the human-readable label for categorizing roles throughout the movie database.",
+          "nullable": true,
+          "cardinality_category": "low",
+          "example_values": [
+            "Digital Artist",
+            "Hair Designer",
+            "Special Effects Assistant",
+            "Visual Effects"
+          ],
+          "valid_values": [
+            "24 Frame Playback",
+            "3D Artist",
+            "ADR \u0026 Dubbing",
+            "ADR Dialogue Supervisor",
+            "ADR Editor",
+            "ADR Mixer",
+            "ADR Recordist",
+            "ADR Voice Cast",
+            "Accounting Production Assistant",
+            "Acknowledgment",
+            "Acting Coach",
+            "Action Coordinator",
+            "Actor",
+            "Actor's Assistant",
+            "Actors",
+            "Adaptation",
+            "Additional Assistant Director",
+            "Additional Boom Operator",
+            "Additional Camera",
+            "Additional Casting",
+            "Additional Character Design",
+            "Additional Dialogue",
+            "Additional Editing",
+            "Additional Editorial Assistant",
+            "Additional Effects Development",
+            "Additional Layout",
+            "Additional Lighting",
+            "Additional Music",
+            "Additional Music Supervisor",
+            "Additional Photography",
+            "Additional Screenplay Material",
+            "Additional Set Dressing",
+            "Additional Sound",
+            "Additional Soundtrack",
+            "Additional Story Material",
+            "Additional Storyboarding",
+            "Additional Third Assistant Director",
+            "Additional Writing",
+            "Administration",
+            "Animal Trainer",
+            "Animal Wrangler",
+            "Animation",
+            "Animation Department Coordinator",
+            "Animation Director",
+            "Animation Fix Coordinator",
+            "Animation Fixes \u0026 Deliveries",
+            "Animation Manager",
+            "Animation Production Assistant",
+            "Animation Supervisor",
+            "Animatronic and Prosthetic Effects"
+          ],
+          "case_sensitive": true,
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        }
+      ],
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      },
+      "x_properties": {
+        "grain": "One row per unique job title or professional role in the movie industry."
+      }
+    },
+    {
+      "model_id": "movie_abstracts_de",
+      "name": "movie_abstracts_de",
+      "label": "Movie Abstracts De",
+      "description": "This table stores German-language abstracts or summaries for movies in the database. Each row represents a German translation of a movie's synopsis or description, linking back to the main movies table through the movie_id foreign key. The table supports the internationalization features of the movie database by providing localized content for German-speaking users or markets.",
+      "physical_source": {
+        "schema": "public",
+        "table": "movie_abstracts_de"
+      },
+      "primary_key": [
+        "movie_id"
+      ],
+      "ddl_fingerprint": "sha256:44acd744053347c4f95ab07350370d721bea0cbfada2e7b65a55d7aa2e2a5477",
+      "columns": [
+        {
+          "name": "movie_id",
+          "data_type": "bigint",
+          "role": "identifier",
+          "label": "Movie ID",
+          "description": "Foreign key referencing the main movies table. Uniquely identifies which movie this German abstract belongs to.",
+          "nullable": false,
+          "cardinality_category": "medium",
+          "example_values": [
+            "193",
+            "199",
+            "21",
+            "3504",
+            "406",
+            "429",
+            "591",
+            "597",
+            "897",
+            "9072"
+          ],
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "abstract",
+          "data_type": "text",
+          "role": "dimension",
+          "label": "German Abstract",
+          "description": "German-language synopsis or summary of the movie. Provides localized movie descriptions for German-speaking users or markets. Nullable field that may be missing for some movies.",
+          "nullable": true,
+          "cardinality_category": "medium",
+          "example_values": [
+            "Aparajito ist der zweite Teil der bengalischen Apu-Serie von Satyajit Ray, in dem Apu die Schule besucht, seine Eltern verliert und nach Kalkutta geht.",
+            "Bei seinem Kampf gegen einen wahnsinnigen Wissenschaftler, erhält Captain Piccard unerwartet Hilfe von einer Legende. Siebter Teil der Star Trek Serie und gleichzeitig der erste mit der Next Generation Crew.",
+            "Die Borg, der größte Feind der Föderation, greifen die Erde an. Um sie zu retten, muss sich Captain Picard seiner Vergangenheit und seinem schlimmsten Albtraum stellen. Achter Star Trek Film, der auf der beliebten Science-Fiction-Serie Raumschiff Enterprise basiert.",
+            "Drei - und nicht zwei, wie der irreführende deutsche Titel suggerieren mag - Halunken konkurrieren um 200.000 Dollar, die in einem Grab versteckt sind. Der dritte Teil der Dollar-Trilogie Sergio Leones, dessen Italo-Western dem Genre Western eine neue (blutige) Färbung gaben.",
+            "Folge 12 des Fortsetzungsfilms im Kinovorprogramm",
+            "La Haine gilt als Bombe, die ins französische Kino einschlug und internationale Anerkennung erntete. Was Mathieu Kassovitz in dem rohen Film über Vorstadtgewalt in Frankreich zeigt, nimmt im Jahre 1995 vorweg, was zehn Jahre später in den Straßen der Banlieues von Paris eskalieren wird.",
+            "The Endless Summer ist einer der einflussreichsten, ersten Filme des Surf-Movie Genres. Er dokumentiert die Reise der amerikanischen Surfer Mike Hynson und Robert August, während des kalifornischen Winters, der Surf-Off Saison. Die Grundidee der Reise basiert auf der Vorstellung dem Sommer auf der Weltkugel hinterher zu reisen, um ihn endlos zu machen. ",
+            "Titanic ist ein Blockbuster von James Cameron über eine Liebesgeschichte auf dem dem Untergang geweihten Passagierschiff mit Leonardo DiCaprio und Kate Winslet in den Hauptrollen. Als einer der kommerziell erfolgreichsten Filme ging Titanic in die Filmgeschichte ein.",
+            "US-amerikanische Komödie aus dem Jahr 2006. Ein Ehepaar adoptiert einen kleinen Jungen. Die beiden bemerken erst später, dass es sich bei ihrem Kind um einen kleinwüchsigen Kriminellen handelt, der von der Polizei schon seit längerem gesucht wird.",
+            "Verfilmung des Thrillers Sakrileg von Dan Brown (2003). Harvard-\"Symbologe\" Robert Langdon und Polizei-Kryptografin Sophie Neveu entschlüsseln auf der Suche nach einem Mörder versteckte Botschaften Leonardo da Vincis. Regie führte Ron Howard, zu den Darstellern gehören unter anderem Tom Hanks, Jean Reno, Audrey Tautou und Ian McKellen."
+          ],
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        }
+      ],
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      },
+      "x_properties": {
+        "grain": "One row per movie with a German abstract"
+      }
+    },
+    {
+      "model_id": "movie_abstracts_en",
+      "name": "movie_abstracts_en",
+      "label": "Movie Abstracts En",
+      "description": "This table stores English-language abstracts or summaries for movies in the database. Each row contains a text description that provides a brief overview of a specific movie's plot, themes, or content. The table supports the internationalization capabilities of the movie database by maintaining English abstracts separately from other language versions, enabling multilingual movie information services.",
+      "physical_source": {
+        "schema": "public",
+        "table": "movie_abstracts_en"
+      },
+      "primary_key": [
+        "movie_id"
+      ],
+      "ddl_fingerprint": "sha256:2b7d807e58bdfdfa8e7341e36def57c51c0293da6715fc9df1a091667a38e18c",
+      "columns": [
+        {
+          "name": "movie_id",
+          "data_type": "bigint",
+          "role": "identifier",
+          "label": "Movie ID",
+          "description": "Primary key and foreign key reference to the movies table, uniquely identifying each movie in the database. Links the English abstract to its corresponding movie record.",
+          "nullable": false,
+          "cardinality_category": "low",
+          "example_values": [
+            "1308",
+            "234",
+            "252",
+            "297",
+            "309",
+            "397",
+            "628",
+            "868",
+            "94",
+            "9895"
+          ],
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "abstract",
+          "data_type": "text",
+          "role": "dimension",
+          "label": "Abstract",
+          "description": "English-language text summary or description of the movie's plot, themes, or content. Can be null or empty for movies without abstracts. Used for display and search purposes in movie information services.",
+          "nullable": true,
+          "cardinality_category": "low",
+          "example_values": [
+            "",
+            "A Danish film produced in the Dogma style by Thomas Vinterberg that portrays a family having a party for their father when one son makes a toast speech that tells the truth about the murder of their eldest sister possibly involving the father.",
+            "An eerie German silent film from 1920. This classic expressionistic film is known as a landmark in film history becoming famous worldwide from it’s exceptional new wave style of well built and painted grotesque scenery with contrasted lighting along with the painted effect of light and shadows. The film tells a surrealistic story with an unusual end that was a result of censorship.  ",
+            "French Kiss is director Kasdan’s best film since the Bodyguard. The plot involves a couple in love and one woman’s attempt to fly to Paris to get her lover back from a business trip and marry him. On the way she unknowingly smuggles something of value that has a petty thief chasing her across France as she chases after her future husband.",
+            "George questions his sexuality after Jerry, Elaine and he receive massages. The first episode from the third season of the popular sitcom television series Seinfeld.",
+            "Interview with a Vampire is the edgy and opulently filmed story of a man with no will to live that is given the chance to become a vampire. Adapted from the novel by Anne Rice.",
+            "Kunstgriff is a brilliantly filmed black and white short film. Andre F. Nebe gives proof of his storytelling abilities in this 6 minute film.",
+            "Meet Joe Black is the tale of the romantic encounters of two young people. A tragic drama about death and life from director Martin Brest six years after his success with ‘Sent of a Woman.’",
+            "The South African multi-award winning film about a young South African boy from the ghetto named Tsotsi, meaning Gangster. Tsotsi, who left home as a child to get away from helpless parents, finds a baby in the back seat of a car that he has just stolen. He decides that it his responsibility to take care of the baby and learn that maybe the gangster life isn’t the best way.",
+            "Willy Wonka and the Chocolate Factory is the wonderfully playful film based on the children’s book by Roald Dahl. Gene Wilder plays a mystical and very reclusive chocolate factory owner that gives five kids the change to visit the most secret and enchanting factory of chocolate."
+          ],
+          "valid_values": [
+            "",
+            "  The film is set up amongst the landscape of two potentially related murders: that of an engaged woman in Sunshine, and that of seven passengers on a train in Melbourne's inner east. From there, the film deals primarily with the experiences a young woman, who boarded the train shortly after the murders, and police Constable Graham McGahan, who is afflicted with increasingly severe tinnitus.",
+            " Ayatollah Khomeini takes over Iran, after the fall of the Shah",
+            " Pearl Saini  Just before retiring from the force a disillusioned detective, along with his successor, must solve one last case. They are hunting down a psychotic serial killer who chooses his victims according to the seven deadly sins. A masterpiece from director David Fincher that set new standards for the thriller genre.",
+            " Soraya always has to play alone in the yard. But then she discovers that new children moved in to the neighbour house.",
+            "\"...reitet für Deutschland\" is a Nazi propaganda film about the resurgent Germany after the First World War. Representing Germany is Rittmeister Ernst von Brenken, who returns to his country estate after World War I severely injured and paralyzed. With iron discipline and hard training, however, he soon succeeds in celebrating victories again as a tournament rider.",
+            "\"Bubble Boy\" is a comedy about a young man who was born without an immune system and has lived his life within a plastic bubble in his bedroom...",
+            "\"Case 39\" centers on an idealistic social worker who saves an abused 10-year-old girl from her parents only to discover that the girl is not as innocent as she thinks.",
+            "\"Choose life.\" Trainspotting is a Scottish cult film from the 1990’s about a group of junkies and their perspective on life. The film was the most commercially successful British film of the 20th century.",
+            "\"Dark Fury\" shows what happened with Riddick, Jack and the Iman between \"Pitch Black\" and \"The Chronicles of Riddick\". Just escaped from the darkness their escape vessel is captured by mercenaries. But those are no normal mercenaries as they want to add Riddick to their \"art\" collection of the most brutal and evil criminals.",
+            "\"French for Beginners\" tells the story of HENRIK, who takes part in a student exchange program with France. The only...",
+            "\"Hell\" is a Mexican black comedy about the bloody drug wars blighting the country. It tells the story of a deported migrant called El Benny as he transforms Tony Montana style into a brutal, violent enforcer for a drug gang. ",
+            "\"Hunt for the Wilderpeople\" is a New Zealand adventure-comedy from 2016 about a boy who is brought to foster parents at a remote farm and gets lost with his foster father in the wilderness. The movie has been written and directed by Taika Waititi, the leading roles are played by the young Julian Dennison and veteran actor Sam Neill.",
+            "\"King Lines\" is a climbing movie with and about Chris Sharma.",
+            "\"Lola rennt\" is a fast-paced film about love and how every decision in every second can change one’s life drastically. The film brought director Tom Tykwer world wide fame and gave German 90’s films a strong boost.",
+            "\"Lost in the Black Hole\" is Bangladesh's first-ever symbolic cult horror short film, where the director/artist has experimented on the five metaphoric characters to represent the various meanings of things through expression, symbolism, and numerology.",
+            "\"MS, Mexico and Me: Aileen's Story\" is a health-issue documentary showing one woman's journey from her home in the Isle of Lewis in Scotland all the way to Mexico to get stem cell treatment for her Multiple Sclerosis.",
+            "\"Se vi picchia non vi ama\" è un cortometraggio che nasce con lo scopo di sensibilizzare il pubblico appartenente a qualsiasi classe sociale su un problema che ormai non basta combattere, ma va assolutamente “debellato”; la violenza sulle donne.  \\\n",
+            "\"Slip\" is the story of Sarah, a young woman who witnessed her mother's murder as a child. Now grown...",
+            "\"THE THIRD DIMENSION IS TERROR!\" The third film in the series follows a group of marine biologists attempting to capture a young great white shark that has wandered into Florida's Sea World Park. However, later it is discovered that the shark's 35-foot mother is also a guest at Sea World. Oh no.",
+            "\"Tales\" from female Iranian director Rakhshan Bani-Etemad is about the fight of women for their rights in a men's world.",
+            "\"The Driver\" is specialist in a rare business: he drives getaway cars in robberies. His exceptional talent prevented him from being caught yet. After another succeeded flight from the police, a self-assured detective makes it his primary goal to catch the Driver. He promises remission of of punishment to a gang if they help to convict him in a set-up robbery.",
+            "\"The Dudesons Movie\" is an extreme stunts comedy that features the wild antics of four hilarious, lifelong friends and their crazy lives in the Arctic Circle.",
+            "\"The Griffin household includes two teenagers, a cynical dog who is smarter than everyone else, and a mutant baby who makes numerous attempts to eradicate his parents and siblings. Heading up this eclectic household is Peter Griffin. Peter does his best to do what's right for the family, but along the way, he makes mistakes that are the stuff of legends\". - Ronos for IMDB.com",
+            "\"The International\" has great character development, wonderful filmography, and a plot that is not only \"believable\" but \"accurate\" in its implications.  The critics who suggest the plot is not part of the \"real world\" have lived sheltered and idealistic lives.  This viewer rates the film as 4-1/2 stars out of 5. ",
+            "\"The Passion of the Christ\" is a film about the last 12 hours in the life of Jesus. Director Mel Gibson received much criticism from critics and audiences for his explicit depiction of and focus on violence and on christs suffering, especially on the part of the jewish community. The films languages are Arabic, Latin and Hebrew and its actors are laymen which was controversially received as well.",
+            "\"The documentary explores Einstein's unlikely discovery and enduring career, exploring the many layers of Einstein's comedy from the people that knew him best.\" from HBO.",
+            "\"The witch madness, like a spiritual plague rages wherever these judges go. Within a few centuries over 8 million women, men and children were burnt as witches.\"    ",
+            "\"You're so small, you can't hurt people, I Known this!\"",
+            "#1 NASCAR driver Ricky Bobby (Ferrell) stays atop the heap thanks to a pact with his best friend and teammate, Cal Naughton, Jr. (Reilly). But when a French Formula One driver (Cohen), makes his way up the ladder, Ricky Bobby's talent and devotion are put to the test.",
+            "'Channeling' is a sci-fi movie set in a very near future, which focuses on a single piece of new technology - and how people use or abuse it. The premise is simple, compensating for the low production budget by concentrating on a creative central idea and character interaction. The technology is highly plausible and the movie seems like a prediction of things to come... and a definite warning.",
+            "'Elephants Dream' is the first Open Movie Project from the non-profit Blender Foundation. It was intended to demonstrate that free, open-source software is fully capable of generating high-quality animated movies. This short, surreal journey through a living machine took around 8 months to complete and paved the way for further projects.",
+            "'Sada AlMadhi' A program searches for and talks about Ibb civilization in Yemen, and about its Yemeni cultural role.\\\n\\\n",
+            "'Sintel' is the third Open Movie Project, continuing to demonstrate the capabilities of free, open-source software. The first short, 'Elephants Dream', was surreal and slightly macabre and the second 'Big Buck Bunny' was humorous and more typically \"cartoony\". This third project is a more mature and emotional fantasy tale. The graphical quality is far superior and the story tugs at the heart.",
+            "'Terms And Conditions May Apply' is a witty documentary which examines the cost of so-called \"free\" services and the continuing disappearance of online privacy. You may think you know what you're giving up when you click \"I Agree\" on sites like Facebook and Google... but do you really?",
+            "'The Internet’s Own Boy' follows the story of programming prodigy and information activist Aaron Swartz. From his help in the development of the RSS protocol to his co-founding of Reddit, his fingerprints are all over the internet. This film is a personal story about what we lose when we are tone deaf about technology and its relationship to our civil liberties.",
+            "'WE ARE LEGION: The Story of the Hacktivists' takes us inside the complex culture and history of Anonymous. The film explores early hacktivist groups like Cult of the Dead Cow and Electronic Disturbance Theater, and then moves to Anonymous’ own raucous and unruly beginnings on the website 4Chan.",
+            "10,000 Days ago, Comet 23 struck Earth with the magnitude of all the nuclear weapons in the world sending the planet into a deep freeze. Now, 27 years in the future, those who survived are locked in an epic battle of life or death.",
+            "100 Women is a 2002 comedy film written and directed by Michael Davis. It tells the story of a young man named Sam and his struggle to discover why the girl of his dreams is suddenly depressed after her cheeriness brought him out of his sadness. The film was originally released under the title Girl Fever and had a short run in cinemas before being renamed 100 Women and being released to DVD.",
+            "11 directors show their view on the terrorist attacks on the world trade center in New York.",
+            "12 Angry Men is the 1957 film debut for director Sidney Lumet. An interpretion from a Broadway show, this film is about 12 jurors who must decide whether an 18-year-old is guilty of killing his father.",
+            "12 jurors must decide the fate of a Chechen teenager charged with murdering his stepfather.",
+            "12-year-old Simon lives with his older sister near a Swiss ski resort and steals from the tourists.",
+            "12-year-old Steve grows up in the mid-90s with his mother and older brother Ian, who regularly beats him up. Steve doesn't have any friends, but when he sees a few older skaters in a skate store, he is fascinated. He teaches himself to skate and finds access to the group. But there is also a lot of alcohol and cigarettes around.",
+            "13 year old Briony has a crush on Robbie, who is in love with Briony's sister Cecilia. Briony discovers Robbie and Cecilia having sex in the library. The same night two boys who visit the family run away. During the search party Briony's cousin Lola Quincey is assaulted. Briony accuses Robbie, who is arrested and convicted. Robbie gets a chance to get out of prison if he goes to war.",
+            "13-year-old Ahmed has changed. He refuses to shake hands with his tutor Inès, insults his sister because of her clothes and his mother because she drinks alcohol. The neighborhood imam encourages him, and Ahmed's idol is his cousin who died as a suicide terrorist. When Inès breaks the rules of the Koran, Ahmed takes action.",
+            "13-year-old Ava learns that she will soon go blind. Her mother wants her to have a nice summer before that happens. On the beach, Ava meets the mysterious drifter Juan and his dog. Ava is fascinated by the 18-year-old boy and the animal and seeks their closeness, while the disease increasingly restricts her, especially at night.",
+            "13-year-old Charlotte grows up without a mother in simple circumstances with her overburdened father. Then she meets Clara, a pianist of the same age, through whom she can dream of a more exciting life.",
+            "14-year-old Joe moves to Montana with his parents in 1960, but soon father Jerry loses his job. This plunges him into a crisis, so that mother Jeanette has to look for an income. When Jerry finally volunteers to fight forest fires, Jeanette is furious because he will be gone for months. Joe has to watch his mother get involved with the older Warren.",
+            "1492: Conquest of Paradise depicts Christopher Columbus’ discovery of The New World and his effect on the indigenous people."
+          ],
+          "case_sensitive": true,
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        }
+      ],
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      },
+      "x_properties": {
+        "grain": "One row per movie with an English abstract"
+      }
+    },
+    {
+      "model_id": "movie_abstracts_es",
+      "name": "movie_abstracts_es",
+      "label": "Movie Abstracts Es",
+      "description": "This table stores Spanish-language abstracts or summaries for movies in the database. Each row contains a movie's plot summary, description, or synopsis written in Spanish, supporting the internationalization capabilities of the movie database system. The abstracts are optional (nullable) and provide Spanish-speaking users with movie descriptions in their native language. This table enables the database to serve multilingual content for global movie information services or streaming platforms.",
+      "physical_source": {
+        "schema": "public",
+        "table": "movie_abstracts_es"
+      },
+      "primary_key": [
+        "movie_id"
+      ],
+      "ddl_fingerprint": "sha256:4c1395a9470f02bf6778a14bdbbf7b69e8c066facc920a709475bdab80665440",
+      "columns": [
+        {
+          "name": "movie_id",
+          "data_type": "bigint",
+          "role": "identifier",
+          "label": "Movie ID",
+          "description": "Primary key identifier for the movie record, also serving as a foreign key reference to the movies table. Uniquely identifies each movie that has a Spanish abstract in the system.",
+          "nullable": false,
+          "cardinality_category": "low",
+          "example_values": [
+            "11659",
+            "117560",
+            "16184",
+            "16679",
+            "18235",
+            "24996",
+            "34302",
+            "35130",
+            "40394",
+            "716"
+          ],
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "abstract",
+          "data_type": "text",
+          "role": "dimension",
+          "label": "Spanish Abstract",
+          "description": "Spanish-language plot summary or synopsis of the movie. Contains detailed narrative descriptions of the movie's storyline, characters, and setting to help Spanish-speaking users understand the film's content.",
+          "nullable": true,
+          "cardinality_category": "low",
+          "example_values": [
+            "Adam es un enigmático joven que ha vivido toda su vida evitando los riesgo. Cuando conoce a Beth, sun nueva vecina, todo cambiará. Beth es una cosmopolita joven que lo saca a rastras al mundo exterior, dando pie a una enigmática relación que demuestra que dos personas con realidades muy distintas pueden llegar a profundos niveles de entendimiento. ",
+            "Ambientada en Los Ángeles en 1962, en el punto álgido de la crisis de los misiles cubanos, A single man es la historia de George Falconer [Colin Firth], un profesor universitario británico de 52 años que lucha por encontrarle sentido a su vida tras la muerte de su compañero sentimental de muchos años, Jim [Matthew Goode].",
+            "Chand es una joven india que viaja a Canadá para casarse con un hombre que no conoce, con el que su familia ha concertado un matrimonio. A pesar de sus esperanzas, su nueva vida se convierte en una pesadilla para Chand, que tendrá que soportar el comportamiento abusivo de su marido. Rosa, una compañera de trabajo jamaicana, será el único consuelo de Chand. ",
+            "Dom Cobb tiene el don de poder penetrar en la mente de las personas para apropiarse de los secretos del subconsciente durante el sueño. Esta habilidad le ha convertido en un codiciado profesional, pero también en un fugitivo internacional que ha sacrificado todo aquello que quería. Ahora tiene la oportunidad de redimirse haciendo todo lo contrario: implantando una idea en vez de sustraerla. ",
+            "El drama italiano se concibió originalmente como una serie de televisión, pero luego se estrenó en versión de seis horas en los cines. Narra la vida de una familia romana entre 1966 y 2000, y el destino de los miembros de la familia se muestra siempre en relación con acontecimientos históricos de Italia.",
+            "En un futuro cercano: a diferencia de su esposa Asha, el mecánico de automóviles Gray piensa poco en los nuevos logros técnicos. Cuando su automóvil autónomo la conduce por el camino equivocado, Asha es asesinada por delincuentes y Gray sobrevive con paraplejía. El empresario tecnológico Eron Keen le implanta un chip de IA para que pueda volver a moverse. Él usa esto para buscar a los asesinos.",
+            "Lorenzo Da Ponte es expulsado de Venecia y enviado a Viena. Gracias a su mentor, Casanova, Da Ponte enseguida se introducirá en la sociedad vienesa, donde conocerá a Salieri, el compositor favorito del rey, y al joven Mozart. Gracias a las artimañas de Salieri, Da Ponte se convertirá en libretista de Mozart y acabará siendo fuente de inspiración de su magnífica ópera \"Don Giovanni\"",
+            "Parodia de las películas de vampiros tan de moda, tomando \"Twilight\" como eje. Becca, que no es vampira, se debate entre dos chicos, no sin antes intentar sortear a su padre, que la avergüenza. Por otro lado, sus amigos tendrán que lidiar con sus propios problemas amorosos. ",
+            "Spencer es un agente secreto del gobierno. Cuando conoce a Jen, la mujer de sus sueños, decide abandonar su trabajo para casarse con ella y vivir una vida tranquila y feliz. Pero tres años después, Spencer descubre que alguien ha puesto precio a su cabeza. No sabe quién es, y cualquiera puede ser sospechoso, así que formará equipo con su mujer para averiguar quién quiere verle muerto. ",
+            "Una comedia fantástica de Gran Bretaña en la que un joven se embarca en un viaje aventurero a través del tiempo y conoce a grandes personalidades de la historia contemporánea. La película procede de la productora \"Handmade Films\", que ya produjo \"La vida de Brian\" (1979) con los Monty Python."
+          ],
+          "valid_values": [
+            "",
+            "  La mujer sin piano es el retrato en 24 horas, doméstico, laboral y sexual, de un ama de casa a principios del siglo XXI en Madrid. La mujer sin piano está protagonizada por una maleta, un par de zapatos, Carmen Machi, en su primer papel protagonista en cine, y el actor, guionista y compositor checo Jan Budar.",
+            " \"Nueve Reinas\" comienza una madrugada y termina a la mañana del día siguiente. Juan y Marcos, sus protagonistas, son dos estafadores de poca monta que se conocen casualmente una madrugada. En esas 24 horas van a vivir la experiencia de sus vidas. De ser completos desconocidos pasarán a asociarse para una gran estafa, en la que intentarán vender las Nueve Reinas, unas estampitas de gran valor.",
+            " Controvertida (y parcialmente indexada) película de terror francesa de Alexandre Aja por su brutalidad explícita. Dos estudiantes van al campo para preparar sus exámenes, pero allí les espera un peligroso psicópata. ",
+            "\"...reitet für Deutschland\" es una película de propaganda sobre la Alemania resurgida tras la Primera Guerra Mundial. Representando a Alemania está el Rittmeister Ernst von Brenken, que regresa a su finca tras la Primera Guerra Mundial gravemente herido y paralítico. Sin embargo, con una disciplina férrea y un duro entrenamiento, pronto consigue volver a celebrar victorias como jinete de torneos.",
+            "\"Agárralo como puedas\" (en Hispanoamérica: ¿Dónde está el policía?) es una comedia cinematográfica del director David Zucker, cuyo héroe principal es un policía enloquecido que llama la atención por sus métodos de investigación muy poco convencionales y que sólo resuelve el caso gracias a una inusual cadena de circunstancias. La película es la primera parte de una trilogía con el mismo nombre.",
+            "\"Amanecer de los muertos\" (Título original: \"Dawn of the Dead\") es un remake de terror de la película homónima de zombis de 1978 del director George A. Romero. Un grupo de personas se refugia en un centro comercial de los zombis que se están extendiendo rápidamente por todo el mundo.",
+            "\"Amores locos\" es una historia de amor, extrema y poco frecuente. Julia, una joven cuidadora del Museo del Prado, está convencida de que ella aparece en una pintura flamenca que figura en la sala en que trabaja, junto a un hombre que dice es su amante. ",
+            "\"Aquellos maravillosos años\" es una serie tragicómica estadounidense: se centra en la infancia y adolescencia del protagonista Kevin Arnold y sus amigos en un suburbio sin nombre de California a finales de los 60 y principios de los 70. Las historias son comentadas retrospectivamente por el Kevin adulto como narrador en off.",
+            "\"Bright Star\" cuenta la historia de amor que, a principios del siglo XIX vivieron el poeta inglés John Keats y su vecina, la extrovertida y elegante estudiante Fanny Brawne. A pesar de sus diferencias, y de que empezó clandestinamente, el intenso romance duró tres años, pero se vio trágicamente interrumpido por la muerte del poeta. ",
+            "\"Cinema Paradiso\" es una historia sobre el cine y su magia, sobre el poder de sus imágenes. En un pequeño pueblo de Sicilia, el cine es la única distracción. El pequeño Toto, fascinado por las películas, le pide a Alfredo, el proyeccionista, que le enseñe los entresijos de la profesión. Así nace una profunda amistad, que durará hasta que Toto debe dejar el pueblo y comenzar a buscar sus sueños. ",
+            "\"El Cebo\" se realizó a partir de un guión del dramaturgo Dürenmatt en una producción germano-suiza. La película narra la búsqueda de un asesino de niños por parte de un detective. El papel protagonista lo interpreta el actor alemán Heinz Rühmann.",
+            "\"El Juicio de Nuremberg\" es una película estadounidense basada en los Juicios de Nuremberg del 20 de noviembre de 1945.",
+            "\"El Rey de la Muerte\" habla de la naturaleza cotidiana de la muerte, aquí en forma de parábola con siete episodios, cada uno de los cuales simboliza un día de la semana. Lo que une a estos episodios es que los protagonistas se matan violentamente a sí mismos u otros a través de la aparición del \"Rey de la Muerte\".",
+            "\"El silencio de un hombre\" está considerado como uno de los clásicos del cine policíaco francés. La película, que puede situarse entre la Nouvelle Vague y el Cine Negro, hace referencia a la novela \"The Ronin\" de Joan McLeod.\\\n\\\n",
+            "\"En tierra hostil\" narra el intenso día a día de un comando especializado en desactivación de explosivos durante la guerra de Irak liderado por el sargento Thompson. Cuando éste fallece en el transcurso de una misión, la Unidad queda al mando del impredecible y temerario sargento James (Jeremy Renner).",
+            "\"Everybody's Fine\" (Todos están bien) es una comedia dramática que nos cuenta una historia familiar muy común en nuestro mundo moderno. Padres y hermanos que viven a cientos de kilómetros, demasiado inmersos en el torbellino de la vida moderna para encontrar tiempo de llamarse, y demasiado preocupados por sus propias familias y amigos para encontrar tiempo de volver a casa.",
+            "\"Garganta Profunda\" está considerada la película porno clásica que sacó al género de su marginalidad y suscitó un amplio debate público. También es una película de bajo presupuesto que logró la mayor recaudación en taquilla de la historia del cine. En 2005 se estrenó un documental llamado \"Inside Deep Throat\" que revela los antecedentes del clásico del porno.",
+            "\"Hacia rutas salvajes\", de Sean Penn, está basada en una historia real y cuenta la historia del joven Alex (Emile Hirsch) que, alejado de sus padres y de la civilización en general, abandona todas sus posesiones y lo deja todo atrás para embarcarse en un largo viaje a través de Estados Unidos, que finalmente termina en Alaska...",
+            "\"Harry el Sucio\" es una película policíaca estadounidense dirigida por Don Siegel y protagonizada por Clint Eastwood en el papel de un policía rebelde a la caza de un despiadado asesino en serie. La película fue uno de los largometrajes de más éxito de principios de los años setenta e inició toda una serie de películas en torno al personaje de \"Harry el Sucio\".",
+            "\"Historias de San Valentín\" es una comedia romántica de enredo que cuenta cómo la vida de diez personas se cruzan en cinco historias durante el día de San Valentín en las calles de Los Ángeles. ",
+            "\"Homer's Odyssey\" es el tercer episodio de la primera temporada de Los Simpson. En este episodio, Homer primero es despedido por fallos y luego, tras una fase depresiva, se convierte en un luchador por la seguridad en Springfield y finalmente también lucha por más seguridad en la central nuclear.",
+            "\"La Pasión de Cristo\" es una controvertida película sobre el último día de la vida de Jesucristo. El director Mel Gibson fue criticado por las representaciones explícitas de violencia y dividió al público. Por parte judía, Gibson, católico, fue acusado de antisemitismo. La película cuenta con actores laicos y está rodada en arameo, latín y hebreo.",
+            "\"La chaqueta metálica\" (en inglés: Full Metal Jacket\") es una obra tardía de Kubrick. La película aborda el tema de la guerra de Vietnam y plantea la cuestión del embrutecimiento del hombre en la guerra. Muestra el entrenamiento de los marines estadounidenses y su posterior y sangriento despliegue en Vietnam.",
+            "\"Las chicas de oro\" es una comedia de situación sobre cuatro mujeres mayores que viven juntas en un piso compartido. Con mucho humor, se tratan diversos temas socialmente críticos, como la homosexualidad, el sida o la pobreza. Hubo un total de 7 temporadas (1985-1992), pero la secuela \"Golden Palace\" (El hotel de oro), que tuvo que prescindir de Beatrice Arthur como Dorothy, fracasó.",
+            "\"Los Amantes\" (Brokeback Mountain) es la película de mayor éxito del director Ang Lee hasta la fecha. Está basada en el relato homónimo de Annie Proulx y narra la trágica historia de amor de dos vaqueros en la mojigata América de los años sesenta. El western desencadenó un polémico debate social sobre el tema de la homosexualidad, especialmente en Estados Unidos.",
+            "\"Los Chicos del Barrio\" es la popular y exitosa película y crítica social de John Singleton sobre las condiciones en el centro sur de Los Ángeles, donde los adolescentes están involucrados en tiroteos y tráfico de drogas a diario.",
+            "\"Los ríos de color púrpura\" (título original: Les Rivières pourpres) es un thriller francés del año 2000 de Mathieu Kassovitz protagonizado por Jean Reno y Vincent Cassel sobre dos policías en busca de un asesino en serie. El guión fue escrito por Jean-Christophe Grangé a partir de su novela homónima.",
+            "\"Madres \u0026 hijas\" nos habla de la importancia del vínculo entre madres e hijos, a través de la historia de tres mujeres: Karen, que dio a su hija en adopción cuando tenía 14 años y de la que no ha vuelto a saber nada. Elizabeth, su hija, que es ahora una abogada que lucha contra sus propios problemas de familia y amor, y Lucy, que quiere adoptar a un niño.",
+            "\"Mi Idaho privado\" (My Own Private Idaho) está considerada una obra maestra del cineasta independiente Gus Van Sant, que incorpora numerosas referencias culturales a su obra. River Phoenix y Keanu Reeves en una película que se ha convertido en culto y los ha convertido en iconos del cine gay.",
+            "\"Naruto Shippuden\" es la secuela directa de la serie de anime de éxito mundial \"Naruto\". El protagonista es el joven ninja Naruto, de quien se sigue el camino hasta convertirse en adulto y en el ninja supremo de su aldea. La trama se desarrolla en un mundo ficticio, retratado principalmente desde el punto de vista de los ninjas de la aldea de Konoha-Gakure.\\\n\\\n",
+            "\"Perdición\" es un thriller de cine negro de 1944 de Billy Wilder en el que los protagonistas ponen en práctica una estafa al seguro. El agente de seguros Walter Neff conoce a Phyllis Dietrichson, a quien le gustaría librarse de su marido. Planean un asesinato haciéndolo pasar por un accidente para cobrar el seguro.",
+            "\"Primera plana\" (The Front Page) es una comedia de 1974 de Billy Wilder protagonizada por Jack Lemmon, Walter Matthau y Susan Sarandon. El periodista Johnson sufre el síndrome del quemado y quiere dejar su trabajo para siempre, pero eso no le gusta tanto a su jefe...",
+            "\"Salò\", 1944, poco antes del final de la dictadura de Mussolini: un grupo de \"intelectuales\" sádicos torturan violentamente a jóvenes secuestrados con rituales crueles y perversos. La película de Pasolini, muy controvertida, es un ajuste de cuentas con el fascismo y, al mismo tiempo, una crítica a la sociedad de consumo. La versión sin cortes sigue estando prohibida en muchos países.",
+            "\"Senderos de gloria\" es una película antibélica dirigida por Stanley Kubrick y protagonizada por Kirk Douglas, ambientada en la Primera Guerra Mundial. Un general francés intenta obligar a un regimiento a atacar una posición alemana a pesar de la situación desesperada.\\\n\\\n",
+            "\"Solo en casa\" es la exitosa comedia familiar con la joven superestrella Macaulay Culkin. Un joven llamado Kevin es olvidado en casa cuando su familia se va de vacaciones de invierno. Kevin no sólo está solo, sino que debe valerse por sí mismo cuando dos ladrones intentan entrar a robar en su casa.",
+            "\"Strings\" narra la historia de Hal Tara, hijo de un rey, que emprende un largo viaje para vengar la muerte de su padre. En el camino, descubrirá la verdad sobre su propio pueblo y encontrará el amor, en lo que se convertirá en un viaje de descubrimiento y realización. ",
+            "\"Sí Ministro\" es una comedia de situación satírica que se emitió en la BBC entre 1980 y 1984. La serie tiene tres temporadas y fue seguida por una secuela, Yes, Prime Minister, en 1986.",
+            "\"Tarde de perros\" es la adaptación cinematográfica de una historia real de Sidney Lumet, protagonizada por Al Pacino, en la que una pareja de secuestradores se ganaron la simpatía popular porque el atraco estuvo plagado de percances y sus objetivos eran (relativamente) desinteresados.",
+            "1971: Carolyn y Roger Perron se mudan a una granja en Rhode Island con sus 5 hijas. Rápidamente queda claro que el edificio está embrujado y los dos contratan a Ed y Lorraine Warren para llegar al fondo de lo que está sucediendo. Los Warren son figuras históricas en cuyos registros y libros se basan varias películas.",
+            "1974: Tres niños desfigurados, dañados por el incesto y asilvestrados acaban en un hospital psiquiátrico cerrado. Pero los niños consiguen escapar y causar estragos. 30 años después, siguen viviendo en el edificio en medio de la nada. Mala suerte para el grupo de excursionistas que se pierde en la tormenta de nieve y busca refugio allí. Precuela de Wrong Turn de 2003.",
+            "1985: La pequeña ciudad de Epecuén se ve afectada por las mareas altas. 30 años después, la inundación ha remitido. Un grupo de jóvenes documentalistas se propone realizar un documental. Pero aparentemente no están completamente solos en la ciudad destruida... Terror argentino de los hermanos Onetti (\"Francesca\") al estilo de \"La matanza de Texas\".",
+            "1999 DLLBLV,DeLeida: En DeLeida Lawter humilla a sus vecinos, por una apuesta. Todo esto y demás en esta película donde casi todos los diálogos los tienes que imaginar. DeLeida es la primera de la trilogía Pais DLLBLV, formada por DeLeida, Little Beida y Lost Veida.",
+            "8 cortometrajes de 9 directores diferentes, (supuestamente) basados en leyendas mexicanas: Desde el inocente soldado que recibe un disparo, pasando por el fallido rodaje de una película porno, hasta el violento padre que es desmembrado y servido como guiso a los desprevenidos conocidos, los episodios de cortometrajes (de unos 10 minutos de duración) se encadenan sin ninguna historia marco.",
+            "A 12 year old boy with a passion for dance and his brother are rescued from the streets by an old showman who takes them to live with his estranged former dancing partner/brother",
+            "A Bart le han regalado una radio por su cumpleaños. Tras unas cuantas bromas, Bart tira la radio a un pozo, simulando que un niño está atrapado en él. Pronto todo el pueblo se pone en pie para ayudar al pequeño huérfano \"Timmy\".\\\n\\\n",
+            "A Homer le entristece que todo el mundo piense que es estúpido. Cuando se da cuenta de que la vieja tortuga \"Lento Leonard\" ha desaparecido durante una visita al zoo, ve la oportunidad de demostrar que la gente está equivocada. Con sus insólitas teorías, hace amigos en las redes sociales. Pero juntos desarrollan teorías conspirativas cada vez más abstrusas.",
+            "A Lisa le molesta que su nueva muñeca parlante Malibú Stacy sólo pronuncie frases estúpidas que se ajustan a los estereotipos femeninos. Se dirige a Stacy Lovell, la creadora de la muñeca, para quejarse. Pero ya no tiene ninguna influencia en la empresa. Así que decide desarrollar una nueva muñeca junto con Lisa.",
+            "A finales del s.XIX un hecho conmocionó a la sociedad catalana: El anarquista Santiago Salvador lanzó una bomba a la platea del Gran Teatre del Liceu, con el resultado de veinte muertos. Más de un siglo después, La bomba del Liceo es una reflexión sobre aquellos hechos, con la colaboración de valiosos testimonios.",
+            "A group of friends vow to open their college acceptance letters at the same time during the big end-of-year party"
+          ],
+          "case_sensitive": true,
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        }
+      ],
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      },
+      "x_properties": {
+        "grain": "movie with a Spanish abstract"
+      }
+    },
+    {
+      "model_id": "movie_abstracts_fr",
+      "name": "movie_abstracts_fr",
+      "label": "Movie Abstracts Fr",
+      "description": "This table stores French-language abstracts or summaries for movies in the database. Each row represents a movie's abstract content specifically in French, supporting the database's multilingual content capabilities. The table enables the system to provide movie summaries in French for international users or French-speaking markets. This is part of the broader internationalization strategy of the movie database system.",
+      "physical_source": {
+        "schema": "public",
+        "table": "movie_abstracts_fr"
+      },
+      "primary_key": [
+        "movie_id"
+      ],
+      "ddl_fingerprint": "sha256:7181498cfb39f70583d998e24396327f9712447f5fb7de6a8ae697319106a61a",
+      "columns": [
+        {
+          "name": "movie_id",
+          "data_type": "bigint",
+          "role": "identifier",
+          "label": "Movie ID",
+          "description": "Unique identifier for each movie, serving as both primary key and foreign key reference to the movies table. Links the French abstract to its corresponding movie record.",
+          "nullable": false,
+          "cardinality_category": "low",
+          "example_values": [
+            "130222",
+            "171546",
+            "27040"
+          ],
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "abstract",
+          "data_type": "text",
+          "role": "dimension",
+          "label": "French Abstract",
+          "description": "French-language summary or synopsis of the movie content. Provides plot descriptions and key narrative elements specifically translated or written for French-speaking audiences. Nullable field as not all movies may have French abstracts available.",
+          "nullable": true,
+          "cardinality_category": "low",
+          "example_values": [
+            " Frédérick fait pousser des arbres et, depuis près de soixante ans, cultive un secret. Autour de lui, seuls sa femme et son fils aîné savent la vérité sur son histoire. La mort de ce fils, avec qui il entretenait des rapports conflictuels, le conduit à révéler enfin à ses proches ce qu'il n'avait jamais pu dire.",
+            "Le film retrace les événements de la guerre du Pacifique du point de vue des États-Unis, de l'attaque de Pearl Harbor en décembre 1941 à la bataille de Midway en juin 1942.",
+            "Pierre, militaire au caractère bien trempé, retourne dans la cité de son enfance, pour s’occuper de l’auto-école de son père mourant. Depuis son départ, les choses ont bien changé et la façon d’enseigner est très différente…\\\nAprès un premier contact « rugueux », Pierre va devoir s’adapter, abandonner ses préjugés et bouleverser sa vie."
+          ],
+          "valid_values": [
+            "",
+            " Frédérick fait pousser des arbres et, depuis près de soixante ans, cultive un secret. Autour de lui, seuls sa femme et son fils aîné savent la vérité sur son histoire. La mort de ce fils, avec qui il entretenait des rapports conflictuels, le conduit à révéler enfin à ses proches ce qu'il n'avait jamais pu dire.",
+            " Le troisième film de réflexion de Kitano sur sa condition d'artiste. Machisu, un peintre sans talent, persiste à vouloir exercer son art...",
+            " Lucas, un garçon marginal, rencontre par hasard Jacques, un patron de bar grognon affaibli par cinq attaques cardiaques. Sachant que ses jours sont comptés, Jacques décide de prendre sous son aile Lucas. Tout se passe selon ses souhaits jusqu'au jour où April, une jolie hôtesse de l'air un peu éméchée, fait irruption dans le bar....",
+            " Votre fille sort avec un sale type ? Votre soeur s'est enlisée dans une relation passionnelle destructrice ? Aujourd'hui, il existe une solution radicale, elle s'appelle Alex. Son métier : briseur de couple professionnel. Sa méthode : la séduction. Sa mission : transformer n'importe quel petit ami en ex. Mais Alex a une éthique, il ne s'attaque qu'aux couples dont la femme est malheureuse.",
+            "\"The Brian Adams Chronicles\" raconte l'histoire des familles Mckenzie, Legrand et Piens et aussi de Brian Adams, un adolescent en difficulté venant du mauvais côté de la barrière qui est poussée dans ce monde et qui changera à jamais la vie des habitants de Montbrison.",
+            "1942.Joseph a onze ans.  Et ce matin de Juin, il doit aller à l'école, une étoile Jaune cousue sur sa poitrine...Entre bienveillance et mépris, Jo, ses copains juifs comme lui, leurs familles, apprennent la vie dans un Paris occupé, sur la Butte Montmartre, où ils ont trouvé refuge. Tous les personnages du film ont existé. Tous les évènements, même les plus extrêmes, ont eu lieu cet été 1942.",
+            "1973, Putsch en Uruguay. Xavi et Rosana, deux enfants amis et voisins, sont amenés à se séparer. Des années plus tard, ils se retrouvent en Espagne, ce qui leur permet de faire un long retour sur leur enfance et leur pays d'origine. Le temps de l'innocence et de la solidarité a été violemment interrompu par un événement historique - et familial - dans lequel les enfants n'avaient pas leur place.",
+            "A collection of MARSANARYAS Productions available only on the NFT market.",
+            "Aimée est un agent spécial des services secrets français.\\\nUne coalition dirigée par des frères jumeaux se met en place pour l'éliminer en rassemblant une horde de tueurs les plus efficaces...\\\nOu presque... Il pourrait se débarrasser d'eux aisément... Mais cela tombe précisément pendant le week end qu'il doit passer avec sa petite amie... ",
+            "Alexandre a quinze ans et vit seul avec son père, dans les coups et la violence, en révolte contre tous. Pour échapper à ce quotidien sans répit, Alex se réfugie dans son sport favori, l'aviron, et n'a qu'une obsession, gagner seul et à tout prix les championnats de Belgique. ",
+            "Alice est une trentenaire bourrée de complexes. (…) A la suite d'une chute sur la tête, elle se réveille persuadée d'être devenue, comme par magie, une fille sublime. Armée de cette toute nouvelle confiance en elle, plus rien ne lui résiste : elle décroche le job de ses rêves et rencontre l'amour en la personne de Benjamin. Mais que se passera-t-il…",
+            "Alors qu'elle fait son jogging sur la plage, Mélissa aperçoit une voiture en train de brûler. L'incendiaire s'enfuit en courant. Elle le prend en chasse, l'arrête et découvre Chloé, sa propre fille !",
+            "Alors que Lola pense accomplir sa destinée, elle se demande si le jeu en vaut vraiment la chandelle.",
+            "Alors que les filles enchaînent les victoires à la Moon Derby Cup, les vieux démons de Lola ressurgissent.",
+            "Angèle est la fille de Clarius Barbaroux, un paysan. Un beau jour, elle quitte sa famille sans avertir personne pour suivre un bellâtre. Celui-ci s'avère être un proxénète et prostitue Angèle. Quelques mois plus tard, elle revient à la maison avec un enfant. Son père l'enferme à la cave avec son bébé. Mais les bons valets Saturnin et Amédée veillent sur elle.",
+            "Antoine, 25 ans, est porteur de trisomie 21. (…) Il travaille comme aide-documentaliste au CDI dans un collège et mène une vie bien réglée entre famille et amis. Jusqu’au jour où il fait la connaissance de Bianca, une jeune surveillante qui rêve en secret de devenir chanteuse. Il se prend d’affection pour elle. Leur rencontre va les mener plus loin qu’ils ne l’auraient imaginé...",
+            "Après avoir découpé et recousu partiellement Lapin, la Femme au Masque poursuit sa vengeance sanglante en s'attaquant aux cuisses de Grenouille, vidéaste sadomasochiste et un brin philosophe.",
+            "Après avoir émasculé et massacré Mr. Cochon, la Femme au Masque poursuit sa vengeance en faisant la peau à Mr. Lapin, l'homme qui l'a présentée à la femme scarifiée. Elle est l'esclave de Mr. Loup et recrute que des femmes en bonne santé",
+            "Après une vie de labeur, le gangster Max veut se retirer dans la vie bourgeoise. Lors d'un dernier coup, il s'était emparé avec son compère Riton de 50 millions en or à l'aéroport de Paris. Mais Riton parle du vol à son amie, la chanteuse de boîte de nuit Josy. Et celle-ci a une relation avec Angelo, un jeune trafiquant de drogue, qui s'intéresse aussi à l'or...",
+            "Artistes de cirque, Patty et son mari Walter vivent dans un camping à\\\nla périphérie de Rome.Un soir d'hiver, Patty trouve dans un parc voisin une fillette de 2 ans abandonnée par sa mère.Contre l'avis de Walter, elle décide de garder l'enfant chez elle. La petite Asia découvre une nouvelle vie au milieu des saltimbanques,des roulottes et des animaux.",
+            "Avec le 11 septembre 2001, la puissante Amérique a montré ses failles, soulignées par la crise de 2008. Remis en cause dans leurs opérations extérieures, les États-Unis de Bush puis d’Obama mettent en œuvre le \"retrait américain\". Le mandat de Trump marque une autre étape, entre \"America first\" et mépris du multilatéralisme. Avec l’élection de Biden, l’Amérique peut-elle faire son grand retour ?",
+            "Besoin d'un coup de main ?",
+            "Cette année, Clark Griswold a décidé de fêter Noël comme il se doit, mais tout ne se passe pas comme prévu.",
+            "Cigalon est le propriétaire d'un restaurant dans un petit village de Provence. Depuis des années, il refuse catégoriquement de servir les clients. Un beau jour, Mme Toffi, son ancienne blanchisseuse, vient ouvrir un autre restaurant dans le village. Cigalon piqué au vif se remet aux fourneaux.",
+            "Clément Mathieu est professeur de musique dans un internat de rééducation pour mineurs en 1949.",
+            "Clémentine et Sébastien, jeunes parents débordés, pris en étau entre leur travail et leurs enfants, voient Marie-France, la mère de Sébastien, s'installer chez eux.",
+            "Dans un village de haute Provence, un boulanger récemment installé découvre un matin que sa jeune femme est partie avec un berger. Il décide de faire la grève du pain tant que sa femme n'est pas revenue. Le village se mobilise pour pouvoir retrouver sa boulangère.",
+            "De retour à Mézières, Lola n’a qu’une envie : retourner auprès des Cannibal Licornes. Malheureusement pour elle, les choses ont bien changé en son absence.",
+            "Depuis son plus jeune âge, Yazid n'a qu'une passion, la pâtisserie. Elevé entre famille d'accueil et foyer, le jeune homme s'est forgé un caractère indomptable. D'Epernay à Paris en passant par Monaco il va tenter de réaliser son rêve : travailler chez les plus grands chefs pâtissiers et devenir le meilleur.",
+            "Deux paysans s'affrontent parce que l'un, Fonse, veut couper les arbres devenus improductifs d'un verger que l'autre, Jofroi, lui a vendu. Jofroi menace de se suicider et fait du chantage à tout le village. Lorsqu'il meurt, de façon tout à fait naturelle, Fonse décide de conserver quelques arbres en souvenir du vieil homme. Sur Youtube : http://youtu.be/-kpy13NLS64",
+            "Documentaire de Wim Wenders sur des musiciens à Cuba.",
+            "Documentaire sur la chanteuse Janis Joplin.",
+            "Elise Berthier est la première femme noire à diriger une rhumerie et sa nomination a fait beaucoup de bruit. Nombreux sont les hommes à ne pas l'accepter. Des groupes masculinistes vont jusqu'à la menacer et s'efforcent de la pousser à la démission. Elise Berthier réussit à ignorer ses attaques et à poursuivre son travail sans se laisser impressionner, jusqu'au jour où son mari estassassiné..",
+            "En 1975, Jinhee a 9 ans quand son père la place dans un orphelinat tenu par des Soeurs catholiques à Séoul. Le film raconte la vie à l'orphelinat, les amitiés qui se tissent et se brisent au gré des départs, au fil des saisons. Et comment la petite Jinhee résiste à l'épreuve de l'adoption qui la séparera à jamais de ceux qu'elle aime.",
+            "Expérience Visuelle Animée.",
+            "Fleur, une jeune Parisienne timide, rencontre à Marseille Vénus, une jeune Russe extravagante et perdue. Elles n'ont rien en commun, si ce n'est leur envie de rencontrer le garçon idéal... ",
+            "Franchir un STOP... tout en conservant un max de dents.",
+            "French Blood est la première franchise française de films de genre à sketches. Au travers d'histoires courtes liées entre elles par un fil rouge sanglant, un collectif de 30 réalisatrices et réalisateurs français expérimente une nouvelle approche de l'anthologie de l’horreur et du fantastique.",
+            "Gaëlle est de retour après avoir passé cinq mois en mer et retrouve Mélissa. Leur première affaire les oblige à enquêter sur la mort d'une femme, dont le corps a été retrouvé flottant dans la piscine d'un grand hôtel.",
+            "Gynécologue, obstétricienne, Johanna Eckert se bat pour que les femmes puissent avorter dans de bonnes conditions. Elle se heurte à la pression des associations pro-vie, une véritable guerre où tous les moyens sont bons. Un jour, Johanna Eckert trouve la mort alors qu'elle faisait du paddle. Les militants pro-vie seraient-ils à l'origine de son assassinat ?",
+            "Il a 36 heures pour devenir... Le Mac !",
+            "Il est des histoires dont on souhaite être le héros, malgré leurs fins tragiques. Il est des histoires que l'on connait par coeur, et on ne cesse de les écouter. Romain et Julien se sont connus sur une application de rencontres.",
+            "Itso,un jeune homme bulgare secourt une famille turque, agressée par un groupe de néo-nazis. Son jeune frère Georgi se trouve parmis eux. En se rapprochant de ce dernier et de la jolie Turque qu'il a sauvée,Isil, le tourmenté Itso entreprend un cheminement intérieur qui pourrait l'entraîner vers la voie du salut.",
+            "Jeune couple follement amoureux qui se retrouve face aux obstacles très rudes.",
+            "John Crowley est au sommet de sa carrière quand il apprend que ses deux plus jeunes enfants sont gravement malades. Faute de soins adaptés, il s'associe avec le Dr Robert Stonehill, un scientifique brillant mais controversé. Ils créent une société de biotechnologie pour développer un médicament,ce qui amène deux hommes à lutter ensemble  contre les industries pharmaceutiques, et contre le temps. ",
+            "L'histoire conflictuelle de l'Inde n'a pas empêché le pays de devenir la \"plus grande démocratie du monde\". Mais cet édifice singulier est aujourd’hui mis en péril par la politique de son nouvel homme fort, Narendra Modi, et l'instauration d'un pouvoir ethnique hindouiste.",
+            "L'histoire vraie de la scientifique Dian Fossey, qui veut étudier et protéger les gorilles de montagne en Afrique et qui se retrouve en conflit avec les braconniers.",
+            "La room #xxxxxxxxxxx sur un réseau non communiqué du Darknet regroupe au maximum 18 des meilleurs hackers mondiaux. Ils ont tous trois points communs : une très grande maîtrise des technologies, un passé peu commun et une discrétion absolue.",
+            "La vie difficile de Samba, étranger en France qui travaille mais est en situation irrégulière."
+          ],
+          "case_sensitive": true,
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        }
+      ],
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      },
+      "x_properties": {
+        "grain": "One row per movie with a French abstract"
+      }
+    },
+    {
+      "model_id": "movie_aliases_iso",
+      "name": "movie_aliases_iso",
+      "label": "Movie Aliases Iso",
+      "description": "This table stores alternative names and translations for movies in different languages with standardized language codes (ISO format). Each row represents a specific alias or translated title for a movie in a particular language, indicating whether it's an official translation or not. This supports internationalization by allowing movies to have multiple names across different languages and regions, which is essential for a global movie database system.",
+      "physical_source": {
+        "schema": "public",
+        "table": "movie_aliases_iso"
+      },
+      "primary_key": [
+        "movie_id",
+        "name",
+        "language",
+        "official_translation"
+      ],
+      "ddl_fingerprint": "sha256:1e2cbb6b35d069a9ea4d5f43504669d2dd323f7009139f1da865068af796571c",
+      "columns": [
+        {
+          "name": "movie_id",
+          "data_type": "bigint",
+          "role": "identifier",
+          "label": "Movie ID",
+          "description": "Foreign key reference to the movies table, identifying which movie this alias belongs to. Links alternative names back to the main movie record.",
+          "nullable": false,
+          "cardinality_category": "medium",
+          "example_values": [
+            "101",
+            "104",
+            "109",
+            "129",
+            "148",
+            "172",
+            "20",
+            "201",
+            "22",
+            "76"
+          ],
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "name",
+          "data_type": "text",
+          "role": "dimension",
+          "label": "Alias Name",
+          "description": "The alternative name or translated title for the movie in the specified language. This could be an official translation, localized title, or alternative name used in different regions.",
+          "nullable": false,
+          "cardinality_category": "medium",
+          "example_values": [
+            "Cours, Lola, cours",
+            "Das geheime Leben der Worte",
+            "Léon the Professional",
+            "Mi vida sin mí",
+            "Pirates of the Caribbean: The Curse of the Black Pearl",
+            "Prima dell'alba",
+            "Spirited Away - Chihiros Reise ins Zauberland",
+            "Star Trek V: L'ultima frontiera",
+            "Star Trek: Nemesis",
+            "Trzy kolory: Bialy"
+          ],
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "language",
+          "data_type": "text",
+          "role": "dimension",
+          "label": "Language Code",
+          "description": "ISO language code indicating the language of the movie alias. Uses standard two-letter language codes like 'en' for English, 'de' for German, etc.",
+          "nullable": false,
+          "cardinality_category": "low",
+          "example_values": [
+            "de",
+            "en",
+            "es",
+            "fr",
+            "it",
+            "ja",
+            "ko",
+            "ru",
+            "xx",
+            "zh"
+          ],
+          "valid_values": [
+            "ar",
+            "bg",
+            "ca",
+            "cs",
+            "da",
+            "de",
+            "el",
+            "en",
+            "es",
+            "fa",
+            "fi",
+            "fr",
+            "ga",
+            "he",
+            "hi",
+            "hu",
+            "id",
+            "is",
+            "it",
+            "ja",
+            "ka",
+            "kk",
+            "ko",
+            "ky",
+            "lt",
+            "mk",
+            "mn",
+            "ms",
+            "nl",
+            "no",
+            "pl",
+            "pt",
+            "ro",
+            "ru",
+            "sh",
+            "sr",
+            "sv",
+            "th",
+            "tr",
+            "uk",
+            "vi",
+            "xh",
+            "xx",
+            "zh"
+          ],
+          "case_sensitive": true,
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "official_translation",
+          "data_type": "integer",
+          "role": "flag",
+          "label": "Official Translation",
+          "description": "Binary flag indicating whether this alias is an official translation (1) or not (0). Distinguishes between formally recognized translations versus informal or alternative names.",
+          "nullable": false,
+          "cardinality_category": "low",
+          "example_values": [
+            "0",
+            "1"
+          ],
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        }
+      ],
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      },
+      "x_properties": {
+        "grain": "One row per movie alias in a specific language with official translation status."
+      }
+    },
+    {
+      "model_id": "movie_categories",
+      "name": "movie_categories",
+      "label": "Movie Categories",
+      "description": "This table represents the many-to-many relationship between movies and their assigned categories or genres. Each row establishes a connection between a specific movie and a category it belongs to, allowing movies to be classified under multiple categories simultaneously. This junction table enables efficient categorization and filtering of movies by genre, theme, or other classification criteria for the movie database system.",
+      "physical_source": {
+        "schema": "public",
+        "table": "movie_categories"
+      },
+      "primary_key": [
+        "movie_id",
+        "category_id"
+      ],
+      "ddl_fingerprint": "sha256:4d89f709df4c1cc52ba4f5337445ee2b1ab2d22c91a5e22694887dabb871b44f",
+      "columns": [
+        {
+          "name": "movie_id",
+          "data_type": "bigint",
+          "role": "identifier",
+          "label": "Movie ID",
+          "description": "Foreign key reference to the movies table, identifying which movie is being categorized. Forms part of the composite primary key for this junction table, establishing the many-to-many relationship between movies and categories.",
+          "nullable": false,
+          "cardinality_category": "medium",
+          "example_values": [
+            "112",
+            "155",
+            "161",
+            "19",
+            "20",
+            "35",
+            "55",
+            "71",
+            "85",
+            "86"
+          ],
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "category_id",
+          "data_type": "bigint",
+          "role": "identifier",
+          "label": "Category ID",
+          "description": "Foreign key reference to the categories table, identifying which category or genre is assigned to the movie. Forms part of the composite primary key for this junction table, completing the many-to-many relationship mapping.",
+          "nullable": false,
+          "cardinality_category": "medium",
+          "example_values": [
+            "10221",
+            "1071",
+            "1108",
+            "122",
+            "245",
+            "250",
+            "28",
+            "2891",
+            "69",
+            "71"
+          ],
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        }
+      ],
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      },
+      "x_properties": {
+        "grain": "One row per movie-category assignment."
+      }
+    },
+    {
+      "model_id": "movie_countries",
+      "name": "movie_countries",
+      "label": "Movie Countries",
+      "description": "This table represents the many-to-many relationship between movies and the countries associated with them. Each row captures a single country association for a specific movie, which could represent production countries, filming locations, or countries of origin. This table enables tracking of international movie production and supports filtering or categorization of films by geographic association.",
+      "physical_source": {
+        "schema": "public",
+        "table": "movie_countries"
+      },
+      "primary_key": [
+        "movie_id",
+        "country"
+      ],
+      "ddl_fingerprint": "sha256:e40f8bf0a71c93b3b6af9f6758fcffbed051236e566b8d33e3a6fd5cd4d1b6b2",
+      "columns": [
+        {
+          "name": "movie_id",
+          "data_type": "bigint",
+          "role": "identifier",
+          "label": "Movie ID",
+          "description": "Foreign key reference to the movies table, identifying which movie this country association belongs to. Part of the composite primary key for this junction table.",
+          "nullable": false,
+          "cardinality_category": "medium",
+          "example_values": [
+            "1036",
+            "1051",
+            "1070",
+            "115",
+            "165",
+            "429",
+            "647",
+            "703",
+            "752",
+            "866"
+          ],
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "country",
+          "data_type": "text",
+          "role": "identifier",
+          "label": "Country Code",
+          "description": "Two-letter country code (likely ISO 3166-1 alpha-2 format) representing a country associated with the movie. Part of the composite primary key and represents production countries, filming locations, or countries of origin.",
+          "nullable": false,
+          "cardinality_category": "low",
+          "example_values": [
+            "AT",
+            "BR",
+            "DE",
+            "FR",
+            "GB",
+            "IT",
+            "JP",
+            "NL",
+            "TH",
+            "US"
+          ],
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        }
+      ],
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      },
+      "x_properties": {
+        "grain": "One row per movie-country association"
+      }
+    },
+    {
+      "model_id": "movie_keywords",
+      "name": "movie_keywords",
+      "label": "Movie Keywords",
+      "description": "This table represents the many-to-many relationship between movies and keyword categories in the movie database system. Each row establishes a connection between a specific movie and a category that describes or tags that movie, enabling movies to be classified under multiple keyword categories for search, filtering, and content discovery purposes. This junction table supports the categorization and tagging functionality that allows users to find movies based on themes, genres, or other descriptive keywords.",
+      "physical_source": {
+        "schema": "public",
+        "table": "movie_keywords"
+      },
+      "primary_key": [
+        "movie_id",
+        "category_id"
+      ],
+      "ddl_fingerprint": "sha256:faa950bd2ca9ac377aa9a6200e501352cf3ef3fcd35bf0675251e8805fd7d24c",
+      "columns": [
+        {
+          "name": "movie_id",
+          "data_type": "bigint",
+          "role": "identifier",
+          "label": "Movie ID",
+          "description": "Foreign key reference to the movies table, identifying the specific movie in this movie-keyword relationship. This column is part of the composite primary key that uniquely identifies each movie-category association.",
+          "nullable": false,
+          "cardinality_category": "medium",
+          "example_values": [
+            "1",
+            "11",
+            "13",
+            "14",
+            "15",
+            "18",
+            "24",
+            "26",
+            "30",
+            "5"
+          ],
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "category_id",
+          "data_type": "bigint",
+          "role": "identifier",
+          "label": "Category ID",
+          "description": "Foreign key reference to the categories table, identifying the specific keyword category assigned to the movie. This column is part of the composite primary key that uniquely identifies each movie-category association.",
+          "nullable": false,
+          "cardinality_category": "medium",
+          "example_values": [
+            "11337",
+            "1475",
+            "16208",
+            "1826",
+            "2875",
+            "3037",
+            "581",
+            "732",
+            "922",
+            "980"
+          ],
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        }
+      ],
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      },
+      "x_properties": {
+        "grain": "One row per movie-category keyword association."
+      }
+    },
+    {
+      "model_id": "movie_languages",
+      "name": "movie_languages",
+      "label": "Movie Languages",
+      "description": "This table represents the association between movies and the languages they are available in or produced with. Each row captures a specific language-movie pairing, enabling the system to track multilingual content offerings for each film. This table supports internationalization requirements by allowing movies to be associated with multiple languages, which is essential for global movie databases and streaming platforms that serve diverse linguistic audiences.",
+      "physical_source": {
+        "schema": "public",
+        "table": "movie_languages"
+      },
+      "primary_key": [
+        "movie_id",
+        "language"
+      ],
+      "ddl_fingerprint": "sha256:7d990b96ed5ee087e8a56ce7d7f578a09f50eb44649234329bc14231a0e2a393",
+      "columns": [
+        {
+          "name": "movie_id",
+          "data_type": "bigint",
+          "role": "identifier",
+          "label": "Movie ID",
+          "description": "Foreign key reference to the movies table, identifying which movie this language association belongs to. Part of a composite primary key with language.",
+          "nullable": false,
+          "cardinality_category": "medium",
+          "example_values": [
+            "140",
+            "228",
+            "26",
+            "317",
+            "425",
+            "473",
+            "621",
+            "680",
+            "714",
+            "719"
+          ],
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "language",
+          "data_type": "text",
+          "role": "identifier",
+          "label": "Language",
+          "description": "Language code (appears to be ISO 639-1 format based on examples like 'en', 'es', 'fr') representing a language associated with the movie. Part of a composite primary key with movie_id.",
+          "nullable": false,
+          "cardinality_category": "low",
+          "example_values": [
+            "bs",
+            "de",
+            "en",
+            "es",
+            "fr",
+            "it",
+            "ja",
+            "mn",
+            "sh",
+            "zh"
+          ],
+          "valid_values": [
+            "ab",
+            "af",
+            "ak",
+            "am",
+            "ar",
+            "as",
+            "ay",
+            "az",
+            "be",
+            "bg",
+            "bm",
+            "bn",
+            "bo",
+            "bs",
+            "ca",
+            "ce",
+            "co",
+            "cs",
+            "cy",
+            "da",
+            "de",
+            "dz",
+            "el",
+            "en",
+            "eo",
+            "es",
+            "et",
+            "eu",
+            "fa",
+            "ff",
+            "fi",
+            "fr",
+            "ga",
+            "gd",
+            "gl",
+            "gn",
+            "gu",
+            "ha",
+            "he",
+            "hi",
+            "hr",
+            "ht",
+            "hu",
+            "hy",
+            "id",
+            "ig",
+            "is",
+            "it",
+            "iu",
+            "ja"
+          ],
+          "case_sensitive": true,
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        }
+      ],
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      },
+      "x_properties": {
+        "grain": "one row per movie-language combination"
+      }
+    },
+    {
+      "model_id": "movie_links",
+      "name": "movie_links",
+      "label": "Movie Links",
+      "description": "This table stores external links and references for movies across different languages and sources. Each row represents a specific link or reference to a movie from an external source, such as IMDb, TMDb, or other movie databases, with support for multilingual content. The table enables cross-referencing movies with external databases and services, facilitating data integration and providing users with links to additional movie information on various platforms.",
+      "physical_source": {
+        "schema": "public",
+        "table": "movie_links"
+      },
+      "primary_key": [
+        "movie_id",
+        "language",
+        "key"
+      ],
+      "ddl_fingerprint": "sha256:c513279905e761e3a86fa8d5950d30c6c26d458b500477292a7f54b60dd84da2",
+      "columns": [
+        {
+          "name": "source",
+          "data_type": "text",
+          "role": "dimension",
+          "label": "Link Source",
+          "description": "The external database or platform that provides the link reference (e.g., IMDb, TMDb, Wikipedia). This categorizes the type of external service being referenced for cross-platform movie data integration.",
+          "nullable": true,
+          "cardinality_category": "low",
+          "example_values": [
+            "imdbepisode",
+            "imdbmovie",
+            "moviepilot",
+            "wikidata",
+            "wikipedia"
+          ],
+          "valid_values": [
+            "imdbepisode",
+            "imdbmovie",
+            "moviepilot",
+            "wikidata",
+            "wikipedia"
+          ],
+          "case_sensitive": true,
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "key",
+          "data_type": "text",
+          "role": "identifier",
+          "label": "External Key",
+          "description": "The unique identifier or URL-encoded reference used by the external source to identify the movie. This serves as the primary key and contains platform-specific identifiers like IMDb IDs or Wikipedia page names.",
+          "nullable": false,
+          "cardinality_category": "medium",
+          "example_values": [
+            "%C3%80_l%27Ouest,_rien_de_nouveau_(film,_1930)",
+            "Acordarse_de_las_cosas_bellas",
+            "Contact_(película)",
+            "Married..._with_Children",
+            "Q1125384",
+            "Q23594",
+            "Sleepy_Hollow_(film)",
+            "Soul_Kitchen_(film)",
+            "The_Fearless_Vampire_Killers",
+            "tt2268016"
+          ],
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "movie_id",
+          "data_type": "bigint",
+          "role": "identifier",
+          "label": "Movie ID",
+          "description": "Foreign key reference to the internal movie record in the movies table. This links the external reference back to the local movie database entry.",
+          "nullable": false,
+          "cardinality_category": "medium",
+          "example_values": [
+            "143",
+            "16176",
+            "2668",
+            "3053",
+            "51914",
+            "65642",
+            "6742",
+            "686",
+            "8351",
+            "8619"
+          ],
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "language",
+          "data_type": "text",
+          "role": "dimension",
+          "label": "Language Code",
+          "description": "ISO language code indicating the language context for the external link. Supports multilingual movie references where the same movie may have different external identifiers across language-specific platforms or regions.",
+          "nullable": false,
+          "cardinality_category": "low",
+          "example_values": [
+            "de",
+            "en",
+            "es",
+            "fr",
+            "xx"
+          ],
+          "valid_values": [
+            "de",
+            "en",
+            "es",
+            "fr",
+            "xx"
+          ],
+          "case_sensitive": true,
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        }
+      ],
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      },
+      "x_properties": {
+        "grain": "One row per movie link source and language combination."
+      }
+    },
+    {
+      "model_id": "movie_references",
+      "name": "movie_references",
+      "label": "Movie References",
+      "description": "This table stores relationships between movies where one movie references another movie in some capacity. Each row represents a specific type of reference that one movie makes to another movie, such as sequels, prequels, remakes, spin-offs, or other cross-references. This enables the database to track complex inter-movie relationships and dependencies within the film catalog, supporting features like \"related movies\" recommendations or franchise mapping.",
+      "physical_source": {
+        "schema": "public",
+        "table": "movie_references"
+      },
+      "primary_key": [
+        "movie_id",
+        "referenced_id",
+        "type"
+      ],
+      "ddl_fingerprint": "sha256:6d687f2e29814c2ebbf7dc50910fd1367ed960b1c3b2d0652754f333bc169e80",
+      "columns": [
+        {
+          "name": "movie_id",
+          "data_type": "bigint",
+          "role": "identifier",
+          "label": "Movie ID",
+          "description": "The primary key identifier of the movie that makes a reference to another movie. This is a foreign key to the movies table and forms part of the composite primary key for this table.",
+          "nullable": false,
+          "cardinality_category": "low",
+          "example_values": [
+            "101525",
+            "114604",
+            "114649",
+            "12198",
+            "14651",
+            "19434",
+            "225",
+            "35885",
+            "468",
+            "97946"
+          ],
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "referenced_id",
+          "data_type": "bigint",
+          "role": "identifier",
+          "label": "Referenced Movie ID",
+          "description": "The primary key identifier of the movie being referenced by the source movie. This is a foreign key to the movies table and forms part of the composite primary key for this table.",
+          "nullable": false,
+          "cardinality_category": "low",
+          "example_values": [
+            "10222",
+            "104201",
+            "19278",
+            "224",
+            "3530",
+            "64552",
+            "8372",
+            "871",
+            "92520",
+            "9923"
+          ],
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "type",
+          "data_type": "text",
+          "role": "dimension",
+          "label": "Reference Type",
+          "description": "The type or nature of the reference relationship between the two movies. Values include 'Homage', 'Influence', 'Remake', and 'SpinOff', indicating how one movie relates to or references another.",
+          "nullable": false,
+          "cardinality_category": "low",
+          "example_values": [
+            "Homage",
+            "Influence",
+            "Remake",
+            "SpinOff"
+          ],
+          "valid_values": [
+            "Homage",
+            "Influence",
+            "Parody",
+            "Remake",
+            "SpinOff"
+          ],
+          "case_sensitive": true,
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        }
+      ],
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      },
+      "x_properties": {
+        "grain": "One row per movie reference relationship of a specific type between two movies."
+      }
+    },
+    {
+      "model_id": "movies",
+      "name": "movies",
+      "label": "Movies",
+      "description": "This table represents the core catalog of movies and film content in the database, storing comprehensive metadata about individual films including their basic details, financial information, and user ratings. Each row captures essential information about a movie such as its name, release date, runtime, budget, revenue, and user voting data. The table also supports hierarchical relationships through parent_id and series_id foreign keys, allowing movies to be organized into series or linked as sequels/prequels. This serves as the central repository for movie information that can be referenced by other tables in the entertainment database system.",
+      "physical_source": {
+        "schema": "public",
+        "table": "movies"
+      },
+      "primary_key": [
+        "id"
+      ],
+      "ddl_fingerprint": "sha256:4d61fc92399645b0f58c5da4bfacc492681c622be9cebbdb1bdbb628ca4765c8",
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "bigint",
+          "role": "identifier",
+          "label": "Movie ID",
+          "description": "Primary key uniquely identifying each movie in the database. This is a surrogate key used for internal referencing across the movie database system.",
+          "nullable": false,
+          "cardinality_category": "medium",
+          "example_values": [
+            "10925",
+            "1379",
+            "189",
+            "26762",
+            "2958",
+            "429",
+            "8467",
+            "89",
+            "9447",
+            "9514"
+          ],
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "name",
+          "data_type": "text",
+          "role": "dimension",
+          "label": "Movie Name",
+          "description": "The title or name of the movie. Based on the examples, this appears to include titles in various languages and may contain original foreign language titles rather than standardized English translations.",
+          "nullable": true,
+          "cardinality_category": "medium",
+          "example_values": [
+            "Babe: Pig in the City",
+            "Die Liebestragödie des Homunculus",
+            "Dumb \u0026 Dumber",
+            "Il buono, il brutto, il cattivo",
+            "Indiana Jones and the Last Crusade",
+            "Laitakaupungin valot",
+            "Nanny McPhee and the Big Bang",
+            "Sin City: A Dame to Kill For",
+            "The Return of the Living Dead",
+            "Werner - Das muß kesseln!!!"
+          ],
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "parent_id",
+          "data_type": "bigint",
+          "role": "identifier",
+          "label": "Parent Movie ID",
+          "description": "Foreign key reference to another movie in the same table, establishing hierarchical relationships between films. This enables linking sequels, prequels, or related films to their parent movie.",
+          "nullable": true,
+          "cardinality_category": "medium",
+          "example_values": [
+            "111192",
+            "125798",
+            "188",
+            "26193",
+            "26283",
+            "2955",
+            "8385",
+            "84",
+            "9435",
+            "9500"
+          ],
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "date",
+          "data_type": "date",
+          "role": "timestamp",
+          "label": "Release Date",
+          "description": "The release date of the movie. Given the context of a movie database, this most likely represents the theatrical or official release date of the film.",
+          "nullable": true,
+          "cardinality_category": "medium",
+          "example_values": [
+            "1916-10-27 00:00:00 +0000 UTC",
+            "1966-12-23 00:00:00 +0000 UTC",
+            "1985-05-15 00:00:00 +0000 UTC",
+            "1989-05-24 00:00:00 +0000 UTC",
+            "1994-12-06 00:00:00 +0000 UTC",
+            "1996-06-27 00:00:00 +0000 UTC",
+            "1998-11-25 00:00:00 +0000 UTC",
+            "2006-02-03 00:00:00 +0000 UTC",
+            "2010-03-24 00:00:00 +0000 UTC",
+            "2014-08-19 00:00:00 +0000 UTC"
+          ],
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "series_id",
+          "data_type": "bigint",
+          "role": "identifier",
+          "label": "Series ID",
+          "description": "Foreign key reference to another movie that represents the series this movie belongs to. This allows grouping movies into franchises or series collections.",
+          "nullable": true,
+          "cardinality_category": "medium",
+          "example_values": [
+            "1286",
+            "1445",
+            "1704",
+            "1706",
+            "2522",
+            "2864",
+            "3307",
+            "3633",
+            "4262",
+            "4842"
+          ],
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "kind",
+          "data_type": "kind",
+          "role": "dimension",
+          "label": "Content Type",
+          "description": "Categorical field indicating the type of content, with values including episode, movie, movieseries, season, and series. This distinguishes between different forms of entertainment content in the database.",
+          "nullable": true,
+          "cardinality_category": "low",
+          "example_values": [
+            "episode",
+            "movie",
+            "movieseries",
+            "season",
+            "series"
+          ],
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "runtime",
+          "data_type": "integer",
+          "role": "measure",
+          "label": "Runtime Minutes",
+          "description": "The duration of the movie in minutes. This numeric value represents the total running time of the film and is suitable for aggregation and analysis.",
+          "nullable": true,
+          "cardinality_category": "medium",
+          "example_values": [
+            "102",
+            "107",
+            "109",
+            "127",
+            "161",
+            "64",
+            "78",
+            "85",
+            "91",
+            "92"
+          ],
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "budget",
+          "data_type": "numeric",
+          "role": "measure",
+          "label": "Production Budget",
+          "description": "The production budget of the movie in monetary units. The specific currency is not indicated in the schema, making interpretation ambiguous without additional context.",
+          "nullable": true,
+          "cardinality_category": "low",
+          "example_values": [
+            "[unsupported type]"
+          ],
+          "difficulty": "ambiguous",
+          "needs_review": true,
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.4,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "revenue",
+          "data_type": "numeric",
+          "role": "measure",
+          "label": "Box Office Revenue",
+          "description": "The total revenue generated by the movie, likely box office earnings. The specific currency and whether this includes global or domestic revenue only is not specified in the schema.",
+          "nullable": true,
+          "cardinality_category": "low",
+          "example_values": [
+            "[unsupported type]"
+          ],
+          "difficulty": "ambiguous",
+          "needs_review": true,
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.4,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "homepage",
+          "data_type": "text",
+          "role": "dimension",
+          "label": "Movie Homepage URL",
+          "description": "The official website URL for the movie. This provides a link to promotional or informational content related to the film.",
+          "nullable": true,
+          "cardinality_category": "low",
+          "example_values": [
+            "",
+            "http://lichter-der-vorstadt.pandorafilmverleih.de/",
+            "http://www.indianajones.com/crusade",
+            "http://www.iswid.net/",
+            "http://www.mgm.com/goodbadugly/",
+            "http://www.nannymcphee.co.uk/",
+            "http://www.wimpykid.com/",
+            "http://www.wwgw.de/",
+            "https://www.universalpictures.com/movies/mamma-mia-here-we-go-again",
+            "https://wwws.warnerbros.co.jp//hagarenmovie/index.html"
+          ],
+          "valid_values": [
+            "",
+            "  ",
+            "    www.kleinesarschloch2.de",
+            "10 September 2013",
+            "1988",
+            "3 November 2010",
+            "30kamlungjaew.com",
+            "8 November 2013",
+            "Ein russisches und ein amerikanisches U-Boot mit Atomraketen an Bord verschwinden spurlos von der Bi",
+            "Hodder rettet die Welt",
+            "Mamá está en la peluquería",
+            "Milad Shah Hosseini",
+            "Mysterious Brother",
+            "Opening Night calendar ",
+            "Spraengfarlig bombe",
+            "bo.com/movies/you-dont-know-jack/index.html#/movies/you-dont-know-jack/index.html",
+            "captainamerica.marvel.com",
+            "frozenriverthemovie.com",
+            "heyybabyy.erosentertainment.com",
+            "http//www.dr-aleman.com",
+            "http://1000arten.de/",
+            "http://16wishesthemovie.com/ ",
+            "http://2.bp.blogspot.com/-w5n0nQ689JE/TxNkhvpqs0I/AAAAAAAAAUY/oHMfUhzBNJY/s1600/pregnancy-pact.jpg",
+            "http://300themovie.warnerbros.com",
+            "http://3bogatirya.ru/igra-ilya-muromets-i-solovey-razboynik/",
+            "http://abcfamily.go.com/movies/christmas-cupid",
+            "http://adisney.go.com/disneypictures/tangled/",
+            "http://after-the-silence-documentary.com/",
+            "http://aktion-umwelt.de/easy-vegan",
+            "http://alettertothefuture.de/",
+            "http://alkialki.de",
+            "http://allesistgut-derfilm.de/",
+            "http://allfilm.ee/en/filmid/tangerines/",
+            "http://allhatthemovie.com/",
+            "http://alt.tnt.tv/movies/tntoriginals/mists/",
+            "http://alt.tnt.tv/movies/tntoriginals/pirates/frame_index.htm",
+            "http://alternative.artsalliancemedia.com/oilcity/",
+            "http://am-himmel-der-tag.de/",
+            "http://andolfi.fr/films_felicite.html",
+            "http://angeleyesmovie.warnerbros.com/index_noflash.html",
+            "http://anisearch.de/index.php?page=anime\u0026id=573",
+            "http://anisearch.de/index.php?page=anime\u0026id=783",
+            "http://annapurna.pictures/films/booksmart",
+            "http://anothercinderellastory.warnerbros.com/",
+            "http://apostelundpartner.com",
+            "http://appdefilm.nl",
+            "http://appleseedalpha.jp/",
+            "http://arboria.org/",
+            "http://areyouabadteacher.com/",
+            "http://argothemovie.warnerbros.com/"
+          ],
+          "case_sensitive": true,
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "vote_average",
+          "data_type": "numeric",
+          "role": "measure",
+          "label": "Average User Rating",
+          "description": "The average user rating score for the movie. The rating scale and methodology are not specified in the schema, making interpretation domain-dependent.",
+          "nullable": true,
+          "cardinality_category": "low",
+          "example_values": [
+            "[unsupported type]"
+          ],
+          "difficulty": "domain_dependent",
+          "needs_review": true,
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.35,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "votes_count",
+          "data_type": "bigint",
+          "role": "measure",
+          "label": "Total Vote Count",
+          "description": "The total number of user votes or ratings submitted for this movie. This represents the sample size for the average rating calculation.",
+          "nullable": true,
+          "cardinality_category": "low",
+          "example_values": [
+            "1",
+            "14",
+            "2",
+            "3",
+            "36",
+            "4",
+            "5",
+            "6",
+            "68",
+            "7"
+          ],
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        }
+      ],
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      },
+      "x_properties": {
+        "grain": "One row per movie or film"
+      }
+    },
+    {
+      "model_id": "people",
+      "name": "people",
+      "label": "People",
+      "description": "This table represents individuals in the entertainment industry, including actors, directors, producers, and other crew members involved in movie production. Each row stores biographical information for a person, including their name, birth date, death date (if applicable), and gender. The table serves as a master reference for all people associated with films in the database, enabling the system to track cast and crew across different movies and maintain consistent person profiles.",
+      "physical_source": {
+        "schema": "public",
+        "table": "people"
+      },
+      "primary_key": [
+        "id"
+      ],
+      "ddl_fingerprint": "sha256:25f02120384eb676c6d706fd50278305e9f08760bce85a4cd63ec860be5234ae",
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "bigint",
+          "role": "identifier",
+          "label": "Person ID",
+          "description": "Unique identifier for each person in the entertainment industry database. This serves as the primary key to reference individuals across the movie database system.",
+          "nullable": false,
+          "cardinality_category": "medium",
+          "example_values": [
+            "1043",
+            "1129",
+            "1322",
+            "1348",
+            "1350",
+            "1392",
+            "1430",
+            "400",
+            "484",
+            "973"
+          ],
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "name",
+          "data_type": "text",
+          "role": "dimension",
+          "label": "Person Name",
+          "description": "Full name of the individual in the entertainment industry. This includes actors, directors, producers, and other crew members associated with film production.",
+          "nullable": true,
+          "cardinality_category": "medium",
+          "example_values": [
+            "Geraldine Chaplin",
+            "Gino Ardito",
+            "Irène Jacob",
+            "Jason Flemyng",
+            "Keith Richards",
+            "Ngila Dickson",
+            "Philip Lee",
+            "Sławomir Idziak",
+            "Wesley Archer",
+            "Witold Stok"
+          ],
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "birthday",
+          "data_type": "date",
+          "role": "timestamp",
+          "label": "Birth Date",
+          "description": "Date of birth for the person. The high null rate (554.9%) indicates that birth dates are not available for many individuals in the database, which is common for entertainment industry databases where biographical information may be incomplete or private.",
+          "nullable": true,
+          "cardinality_category": "medium",
+          "example_values": [
+            "1935-08-27 00:00:00 +0000 UTC",
+            "1936-09-14 00:00:00 +0000 UTC",
+            "1939-11-26 00:00:00 +0000 UTC",
+            "1943-12-18 00:00:00 +0000 UTC",
+            "1944-07-31 00:00:00 +0000 UTC",
+            "1945-01-25 00:00:00 +0000 UTC",
+            "1946-06-14 00:00:00 +0000 UTC",
+            "1961-11-26 00:00:00 +0000 UTC",
+            "1966-07-15 00:00:00 +0000 UTC",
+            "1966-09-25 00:00:00 +0000 UTC"
+          ],
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "deathday",
+          "data_type": "date",
+          "role": "timestamp",
+          "label": "Death Date",
+          "description": "Date of death for deceased individuals. The very high null rate (2103.8%) is expected as most people in the database are likely still living, and this field only applies to those who have passed away.",
+          "nullable": true,
+          "cardinality_category": "medium",
+          "example_values": [
+            "1970-02-14 00:00:00 +0000 UTC",
+            "1977-07-02 00:00:00 +0000 UTC",
+            "1980-01-23 00:00:00 +0000 UTC",
+            "1983-04-26 00:00:00 +0000 UTC",
+            "2001-10-20 00:00:00 +0000 UTC",
+            "2008-11-05 00:00:00 +0000 UTC",
+            "2013-08-24 00:00:00 +0000 UTC",
+            "2013-12-15 00:00:00 +0000 UTC",
+            "2016-02-19 00:00:00 +0000 UTC",
+            "2023-05-24 00:00:00 +0000 UTC"
+          ],
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "gender",
+          "data_type": "integer",
+          "role": "dimension",
+          "label": "Gender",
+          "description": "Gender classification of the person, represented as an integer code. The values 0 and 1 likely correspond to different gender categories, but the specific mapping requires domain knowledge. The extremely high null rate suggests gender information is often not recorded or disclosed.",
+          "nullable": true,
+          "cardinality_category": "low",
+          "example_values": [
+            "0",
+            "1"
+          ],
+          "difficulty": "domain_dependent",
+          "needs_review": true,
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.35,
+            "human_reviewed": false
+          }
+        }
+      ],
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      },
+      "x_properties": {
+        "grain": "One row per individual person in the entertainment industry"
+      }
+    },
+    {
+      "model_id": "people_aliases",
+      "name": "people_aliases",
+      "label": "People Aliases",
+      "description": "This table stores alternative names or aliases for people in the movie database, such as actors, directors, or other industry professionals. Each row represents a different name variation that a person might be known by, including stage names, pseudonyms, nicknames, or names in different languages. This enables the database to support comprehensive search functionality and accommodate the various names a person might use throughout their career or in different regions.",
+      "physical_source": {
+        "schema": "public",
+        "table": "people_aliases"
+      },
+      "primary_key": [
+        "person_id",
+        "name"
+      ],
+      "ddl_fingerprint": "sha256:bca32c22d6765aceaddade7748ea8d81df6774f86aeb3919574f2a34da2edc36",
+      "columns": [
+        {
+          "name": "person_id",
+          "data_type": "bigint",
+          "role": "identifier",
+          "label": "Person ID",
+          "description": "Foreign key reference to the people table, linking each alias to a specific person in the movie database. This enables multiple alias names to be associated with the same individual.",
+          "nullable": false,
+          "cardinality_category": "medium",
+          "example_values": [
+            "1341",
+            "150",
+            "1891",
+            "2435",
+            "2746",
+            "4165",
+            "5228",
+            "5554",
+            "5725",
+            "707"
+          ],
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "name",
+          "data_type": "text",
+          "role": "dimension",
+          "label": "Alias Name",
+          "description": "The alternative name or alias for a person, including stage names, pseudonyms, nicknames, or names in different languages. Examples show full names, birth names, and international variations of entertainment industry professionals' names.",
+          "nullable": false,
+          "cardinality_category": "medium",
+          "example_values": [
+            "Dan Aykroyd",
+            "Elia Kazanjioglou",
+            "Goran Višnjić",
+            "Herbert Arthur Wiglev Clamor Grönemeyer",
+            "Herbert Brough Falcon Marshall",
+            "Michael Morris",
+            "Robert Fitzgerald Diggs",
+            "Stephen Mirrione",
+            "Yen Ji Dan",
+            "Óscar O. Sánchez"
+          ],
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        }
+      ],
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      },
+      "x_properties": {
+        "grain": "One row per person alias name."
+      }
+    },
+    {
+      "model_id": "people_links",
+      "name": "people_links",
+      "label": "People Links",
+      "description": "This table stores external links and references for people in the movie database, such as URLs to social media profiles, official websites, or other external sources of information. Each row represents a specific external link associated with a person, with support for multiple languages to accommodate international audiences. The table enables the system to maintain connections between people records and their various online presences or reference sources across different languages and platforms.",
+      "physical_source": {
+        "schema": "public",
+        "table": "people_links"
+      },
+      "primary_key": [
+        "person_id",
+        "language",
+        "key"
+      ],
+      "ddl_fingerprint": "sha256:2afd8f2c6713ec7d4949d163a5fbce866474d694630915e515b482a59e6df2b4",
+      "columns": [
+        {
+          "name": "source",
+          "data_type": "text",
+          "role": "dimension",
+          "label": "External Source",
+          "description": "The type or platform of the external link (e.g., imdbperson, wikidata, wikipedia). This categorizes where the external reference originates from, helping to identify the nature and authority of the linked information.",
+          "nullable": true,
+          "cardinality_category": "low",
+          "example_values": [
+            "imdbperson",
+            "wikidata",
+            "wikipedia"
+          ],
+          "valid_values": [
+            "imdbperson",
+            "moviepilotperson",
+            "wikidata",
+            "wikipedia"
+          ],
+          "case_sensitive": true,
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "key",
+          "data_type": "text",
+          "role": "identifier",
+          "label": "External Reference Key",
+          "description": "The unique identifier or key used by the external source to reference this person (e.g., IMDb person ID, Wikipedia page name, Wikidata Q-ID). This is the primary key component that identifies the specific external link record.",
+          "nullable": false,
+          "cardinality_category": "medium",
+          "example_values": [
+            "Henry_Fonda",
+            "Q100700",
+            "Q172678",
+            "Q211082",
+            "Q225852",
+            "Roberto_Rossellini",
+            "Steven_Spielberg",
+            "Tom_Hanks",
+            "Wolf_Gremm",
+            "nm0006445"
+          ],
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "person_id",
+          "data_type": "bigint",
+          "role": "identifier",
+          "label": "Person ID",
+          "description": "Foreign key reference to the people table, identifying which person this external link belongs to. This is part of the composite primary key and establishes the relationship between the person and their external references.",
+          "nullable": false,
+          "cardinality_category": "medium",
+          "example_values": [
+            "1234",
+            "1486",
+            "2231",
+            "28615",
+            "31",
+            "36442",
+            "4410",
+            "488",
+            "4958",
+            "73082"
+          ],
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "language",
+          "data_type": "text",
+          "role": "identifier",
+          "label": "Language Code",
+          "description": "The language code (e.g., en, de, fr) indicating the language context for this external link. This is part of the composite primary key, allowing for language-specific external references for the same person.",
+          "nullable": false,
+          "cardinality_category": "low",
+          "example_values": [
+            "de",
+            "en",
+            "es",
+            "fr",
+            "xx"
+          ],
+          "valid_values": [
+            "de",
+            "en",
+            "es",
+            "fr",
+            "xx"
+          ],
+          "case_sensitive": true,
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        }
+      ],
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      },
+      "x_properties": {
+        "grain": "One row per external link for a person in a specific language."
+      }
+    },
+    {
+      "model_id": "trailers",
+      "name": "trailers",
+      "label": "Trailers",
+      "description": "This table stores information about movie trailers, containing references to trailer videos and their metadata. Each row represents a specific trailer associated with a movie, including details like the trailer's unique key identifier, source platform, and language. The table supports multiple trailers per movie and multilingual trailer content, which aligns with the database's international focus for global movie information services.",
+      "physical_source": {
+        "schema": "public",
+        "table": "trailers"
+      },
+      "primary_key": [
+        "movie_id",
+        "trailer_id"
+      ],
+      "ddl_fingerprint": "sha256:c629e1a13ad4fa68ae298addf230804b93f297da42580eac4c231be341dc3f9c",
+      "columns": [
+        {
+          "name": "trailer_id",
+          "data_type": "bigint",
+          "role": "identifier",
+          "label": "Trailer ID",
+          "description": "Primary key uniquely identifying each trailer record in the database. This is a surrogate key used internally for referencing trailers.",
+          "nullable": false,
+          "cardinality_category": "low",
+          "example_values": [
+            "1212",
+            "1441",
+            "1548",
+            "1668",
+            "1689",
+            "1706",
+            "238",
+            "302",
+            "440",
+            "970"
+          ],
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "key",
+          "data_type": "text",
+          "role": "identifier",
+          "label": "Trailer Key",
+          "description": "Unique identifier key for the trailer video content, likely corresponding to video platform-specific identifiers (e.g., YouTube video IDs). This appears to be a natural key from the source platform.",
+          "nullable": true,
+          "cardinality_category": "low",
+          "example_values": [
+            "27WeoqQyP_Y",
+            "68-AFyE_XMg",
+            "JLiZSQ3kUnM",
+            "NclRSeV4pBA",
+            "ORoNW0gH_P0",
+            "XY8amUImEu0",
+            "YqP3gbbFC54",
+            "iRM4h7iDYoE",
+            "qRbmBm0AK1g",
+            "w5WfpFq27-4"
+          ],
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "movie_id",
+          "data_type": "bigint",
+          "role": "identifier",
+          "label": "Movie ID",
+          "description": "Foreign key reference to the movies table, indicating which movie this trailer belongs to. This establishes the relationship between trailers and their associated films.",
+          "nullable": false,
+          "cardinality_category": "low",
+          "example_values": [
+            "15921",
+            "19950",
+            "23318",
+            "38387",
+            "4170",
+            "42060",
+            "4977",
+            "50487",
+            "53000",
+            "7211"
+          ],
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "language",
+          "data_type": "text",
+          "role": "dimension",
+          "label": "Language",
+          "description": "Language code indicating the language of the trailer content. Appears to use ISO language codes (e.g., 'en' for English, 'de' for German) to support multilingual trailer content.",
+          "nullable": true,
+          "cardinality_category": "low",
+          "example_values": [
+            "de",
+            "en"
+          ],
+          "valid_values": [
+            "de",
+            "en",
+            "es",
+            "fr",
+            "pl"
+          ],
+          "case_sensitive": true,
+          "difficulty": "self_evident",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.8,
+            "human_reviewed": false
+          }
+        },
+        {
+          "name": "source",
+          "data_type": "text",
+          "role": "dimension",
+          "label": "Source Platform",
+          "description": "Platform or source where the trailer is hosted, such as YouTube, Vimeo, or generic sources. This indicates the video hosting platform for the trailer content.",
+          "nullable": true,
+          "cardinality_category": "low",
+          "example_values": [
+            "generic",
+            "vimeo",
+            "youtube"
+          ],
+          "valid_values": [
+            "generic",
+            "vimeo",
+            "youtube"
+          ],
+          "case_sensitive": true,
+          "difficulty": "context_dependent",
+          "provenance": {
+            "source_type": "llm_inferred",
+            "confidence": 0.65,
+            "human_reviewed": false
+          }
+        }
+      ],
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      },
+      "x_properties": {
+        "grain": "One row per movie trailer"
+      }
+    }
+  ],
+  "relationships": [
+    {
+      "relationship_id": "casts_job_id_to_jobs",
+      "from_model": "casts",
+      "from_column": "job_id",
+      "to_model": "jobs",
+      "to_column": "id",
+      "relationship_type": "many_to_one",
+      "join_condition": "casts.job_id = jobs.id",
+      "always_valid": true,
+      "preferred": true,
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      }
+    },
+    {
+      "relationship_id": "casts_movie_id_to_movies",
+      "from_model": "casts",
+      "from_column": "movie_id",
+      "to_model": "movies",
+      "to_column": "id",
+      "relationship_type": "many_to_one",
+      "join_condition": "casts.movie_id = movies.id",
+      "always_valid": true,
+      "preferred": true,
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      }
+    },
+    {
+      "relationship_id": "casts_person_id_to_people",
+      "from_model": "casts",
+      "from_column": "person_id",
+      "to_model": "people",
+      "to_column": "id",
+      "relationship_type": "many_to_one",
+      "join_condition": "casts.person_id = people.id",
+      "always_valid": true,
+      "preferred": true,
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      }
+    },
+    {
+      "relationship_id": "categories_parent_id_to_categories",
+      "from_model": "categories",
+      "from_column": "parent_id",
+      "to_model": "categories",
+      "to_column": "id",
+      "relationship_type": "many_to_one",
+      "join_condition": "categories.parent_id = categories.id",
+      "always_valid": true,
+      "preferred": true,
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      }
+    },
+    {
+      "relationship_id": "categories_root_id_to_categories",
+      "from_model": "categories",
+      "from_column": "root_id",
+      "to_model": "categories",
+      "to_column": "id",
+      "relationship_type": "many_to_one",
+      "join_condition": "categories.root_id = categories.id",
+      "always_valid": true,
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      }
+    },
+    {
+      "relationship_id": "category_names_category_id_to_categories",
+      "from_model": "category_names",
+      "from_column": "category_id",
+      "to_model": "categories",
+      "to_column": "id",
+      "relationship_type": "many_to_one",
+      "join_condition": "category_names.category_id = categories.id",
+      "always_valid": true,
+      "preferred": true,
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      }
+    },
+    {
+      "relationship_id": "image_licenses_image_id_to_image_ids",
+      "from_model": "image_licenses",
+      "from_column": "image_id",
+      "to_model": "image_ids",
+      "to_column": "id",
+      "relationship_type": "many_to_one",
+      "join_condition": "image_licenses.image_id = image_ids.id",
+      "always_valid": true,
+      "preferred": true,
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      }
+    },
+    {
+      "relationship_id": "job_names_job_id_to_jobs",
+      "from_model": "job_names",
+      "from_column": "job_id",
+      "to_model": "jobs",
+      "to_column": "id",
+      "relationship_type": "many_to_one",
+      "join_condition": "job_names.job_id = jobs.id",
+      "always_valid": true,
+      "preferred": true,
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      }
+    },
+    {
+      "relationship_id": "movie_abstracts_de_movie_id_to_movies",
+      "from_model": "movie_abstracts_de",
+      "from_column": "movie_id",
+      "to_model": "movies",
+      "to_column": "id",
+      "relationship_type": "many_to_one",
+      "join_condition": "movie_abstracts_de.movie_id = movies.id",
+      "always_valid": true,
+      "preferred": true,
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      }
+    },
+    {
+      "relationship_id": "movie_abstracts_en_movie_id_to_movies",
+      "from_model": "movie_abstracts_en",
+      "from_column": "movie_id",
+      "to_model": "movies",
+      "to_column": "id",
+      "relationship_type": "many_to_one",
+      "join_condition": "movie_abstracts_en.movie_id = movies.id",
+      "always_valid": true,
+      "preferred": true,
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      }
+    },
+    {
+      "relationship_id": "movie_abstracts_es_movie_id_to_movies",
+      "from_model": "movie_abstracts_es",
+      "from_column": "movie_id",
+      "to_model": "movies",
+      "to_column": "id",
+      "relationship_type": "many_to_one",
+      "join_condition": "movie_abstracts_es.movie_id = movies.id",
+      "always_valid": true,
+      "preferred": true,
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      }
+    },
+    {
+      "relationship_id": "movie_abstracts_fr_movie_id_to_movies",
+      "from_model": "movie_abstracts_fr",
+      "from_column": "movie_id",
+      "to_model": "movies",
+      "to_column": "id",
+      "relationship_type": "many_to_one",
+      "join_condition": "movie_abstracts_fr.movie_id = movies.id",
+      "always_valid": true,
+      "preferred": true,
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      }
+    },
+    {
+      "relationship_id": "movie_aliases_iso_movie_id_to_movies",
+      "from_model": "movie_aliases_iso",
+      "from_column": "movie_id",
+      "to_model": "movies",
+      "to_column": "id",
+      "relationship_type": "many_to_one",
+      "join_condition": "movie_aliases_iso.movie_id = movies.id",
+      "always_valid": true,
+      "preferred": true,
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      }
+    },
+    {
+      "relationship_id": "movie_categories_category_id_to_categories",
+      "from_model": "movie_categories",
+      "from_column": "category_id",
+      "to_model": "categories",
+      "to_column": "id",
+      "relationship_type": "many_to_one",
+      "join_condition": "movie_categories.category_id = categories.id",
+      "always_valid": true,
+      "preferred": true,
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      }
+    },
+    {
+      "relationship_id": "movie_categories_movie_id_to_movies",
+      "from_model": "movie_categories",
+      "from_column": "movie_id",
+      "to_model": "movies",
+      "to_column": "id",
+      "relationship_type": "many_to_one",
+      "join_condition": "movie_categories.movie_id = movies.id",
+      "always_valid": true,
+      "preferred": true,
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      }
+    },
+    {
+      "relationship_id": "movie_countries_movie_id_to_movies",
+      "from_model": "movie_countries",
+      "from_column": "movie_id",
+      "to_model": "movies",
+      "to_column": "id",
+      "relationship_type": "many_to_one",
+      "join_condition": "movie_countries.movie_id = movies.id",
+      "always_valid": true,
+      "preferred": true,
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      }
+    },
+    {
+      "relationship_id": "movie_keywords_category_id_to_categories",
+      "from_model": "movie_keywords",
+      "from_column": "category_id",
+      "to_model": "categories",
+      "to_column": "id",
+      "relationship_type": "many_to_one",
+      "join_condition": "movie_keywords.category_id = categories.id",
+      "always_valid": true,
+      "preferred": true,
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      }
+    },
+    {
+      "relationship_id": "movie_keywords_movie_id_to_movies",
+      "from_model": "movie_keywords",
+      "from_column": "movie_id",
+      "to_model": "movies",
+      "to_column": "id",
+      "relationship_type": "many_to_one",
+      "join_condition": "movie_keywords.movie_id = movies.id",
+      "always_valid": true,
+      "preferred": true,
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      }
+    },
+    {
+      "relationship_id": "movie_languages_movie_id_to_movies",
+      "from_model": "movie_languages",
+      "from_column": "movie_id",
+      "to_model": "movies",
+      "to_column": "id",
+      "relationship_type": "many_to_one",
+      "join_condition": "movie_languages.movie_id = movies.id",
+      "always_valid": true,
+      "preferred": true,
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      }
+    },
+    {
+      "relationship_id": "movie_links_movie_id_to_movies",
+      "from_model": "movie_links",
+      "from_column": "movie_id",
+      "to_model": "movies",
+      "to_column": "id",
+      "relationship_type": "many_to_one",
+      "join_condition": "movie_links.movie_id = movies.id",
+      "always_valid": true,
+      "preferred": true,
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      }
+    },
+    {
+      "relationship_id": "movie_references_movie_id_to_movies",
+      "from_model": "movie_references",
+      "from_column": "movie_id",
+      "to_model": "movies",
+      "to_column": "id",
+      "relationship_type": "many_to_one",
+      "join_condition": "movie_references.movie_id = movies.id",
+      "always_valid": true,
+      "preferred": true,
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      }
+    },
+    {
+      "relationship_id": "movie_references_referenced_id_to_movies",
+      "from_model": "movie_references",
+      "from_column": "referenced_id",
+      "to_model": "movies",
+      "to_column": "id",
+      "relationship_type": "many_to_one",
+      "join_condition": "movie_references.referenced_id = movies.id",
+      "always_valid": true,
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      }
+    },
+    {
+      "relationship_id": "movies_parent_id_to_movies",
+      "from_model": "movies",
+      "from_column": "parent_id",
+      "to_model": "movies",
+      "to_column": "id",
+      "relationship_type": "many_to_one",
+      "join_condition": "movies.parent_id = movies.id",
+      "always_valid": true,
+      "preferred": true,
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      }
+    },
+    {
+      "relationship_id": "movies_series_id_to_movies",
+      "from_model": "movies",
+      "from_column": "series_id",
+      "to_model": "movies",
+      "to_column": "id",
+      "relationship_type": "many_to_one",
+      "join_condition": "movies.series_id = movies.id",
+      "always_valid": true,
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      }
+    },
+    {
+      "relationship_id": "people_aliases_person_id_to_people",
+      "from_model": "people_aliases",
+      "from_column": "person_id",
+      "to_model": "people",
+      "to_column": "id",
+      "relationship_type": "many_to_one",
+      "join_condition": "people_aliases.person_id = people.id",
+      "always_valid": true,
+      "preferred": true,
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      }
+    },
+    {
+      "relationship_id": "people_links_person_id_to_people",
+      "from_model": "people_links",
+      "from_column": "person_id",
+      "to_model": "people",
+      "to_column": "id",
+      "relationship_type": "many_to_one",
+      "join_condition": "people_links.person_id = people.id",
+      "always_valid": true,
+      "preferred": true,
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      }
+    },
+    {
+      "relationship_id": "trailers_movie_id_to_movies",
+      "from_model": "trailers",
+      "from_column": "movie_id",
+      "to_model": "movies",
+      "to_column": "id",
+      "relationship_type": "many_to_one",
+      "join_condition": "trailers.movie_id = movies.id",
+      "always_valid": true,
+      "preferred": true,
+      "provenance": {
+        "source_type": "schema_constraint",
+        "confidence": 1,
+        "human_reviewed": false
+      }
+    }
+  ]
+}

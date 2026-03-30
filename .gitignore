@@ -27,6 +27,12 @@ go.work.sum
 # env file
 .env
 
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+
 # Editor/IDE
 # .idea/
 # .vscode/

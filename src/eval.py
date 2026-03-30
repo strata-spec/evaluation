@@ -8,8 +8,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import anthropic
+import openai
 import psycopg2
+
+EVAL_MODEL = os.getenv("EVAL_MODEL", "deepseek-chat")
+EVAL_BASE_URL = os.getenv("EVAL_BASE_URL", "https://api.deepseek.com")
+EVAL_API_KEY = os.getenv("EVAL_API_KEY") or os.getenv("DEEPSEEK_API_KEY")
 
 # Handle imports for both direct script execution and module import
 try:
@@ -197,22 +201,24 @@ def format_smif_context(model: dict, question: str) -> str:
 
 
 def call_agent(
-    anthropic_client,
+    openai_client,
     model: str,
     system_prompt: str,
 ) -> str | None:
     """
-    Call the Anthropic API with the given system prompt.
+    Call the OpenAI-compatible API with the given system prompt.
     The user message is always: "Generate the SQL query."
     Returns the text response stripped of whitespace, or None on failure.
     Never raises.
     """
     try:
-        response = anthropic_client.messages.create(
+        response = openai_client.chat.completions.create(
             model=model,
             max_tokens=1024,
-            system=system_prompt,
-            messages=[{"role": "user", "content": "Generate the SQL query."}],
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": "Generate the SQL query."},
+            ],
         )
         text = _extract_response_text(response)
         if not text:
@@ -338,10 +344,14 @@ def run_eval(
     schema = fetch_raw_schema(db) if "baseline" in conditions else ""
     merged_model = load_merged(semantic_path, corrections_path) if "strata" in conditions else {}
 
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    api_key = EVAL_API_KEY
     if not api_key:
-        raise ValueError("ANTHROPIC_API_KEY is required to run eval")
-    client = anthropic.Anthropic(api_key=api_key)
+        raise ValueError(
+            "An API key is required to run eval. "
+            "Set EVAL_API_KEY or DEEPSEEK_API_KEY environment variable."
+        )
+    base_url = EVAL_BASE_URL
+    client = openai.OpenAI(api_key=api_key, base_url=base_url)
 
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
@@ -408,7 +418,7 @@ def main() -> int:
     parser.add_argument("--semantic", default="../config/semantic.yaml", help="Path to semantic.yaml")
     parser.add_argument("--corrections", default="../config/corrections.yaml", help="Path to corrections.yaml")
     parser.add_argument("--questions", default="../questions/omdb.yaml", help="Path to questions YAML")
-    parser.add_argument("--model", default="claude-sonnet-4-20250514", help="Anthropic model name")
+    parser.add_argument("--model", default=EVAL_MODEL, help="Model name (default: EVAL_MODEL env or deepseek-chat)")
     parser.add_argument("--output", default="../results/", help="Output directory for results JSON")
     parser.add_argument("--tier", help="Optional tier filter")
     parser.add_argument("--baseline-only", action="store_true", help="Run baseline condition only")
@@ -453,6 +463,9 @@ def main() -> int:
 
     question_count = len({item["id"] for item in results})
     condition_count = len({item["condition"] for item in results})
+    model_source = "env" if args.model == EVAL_MODEL else "--model flag"
+    print(f"model: {args.model} ({model_source})")
+    print(f"base_url: {EVAL_BASE_URL}")
     print(f"Run complete: {question_count} questions × {condition_count} conditions = {len(results)} runs")
     print(f"Results written to {results_path}")
     print(f"Report written to {report_path}")
@@ -479,16 +492,16 @@ def _model_relevant(model: dict, lowered_question: str) -> bool:
 
 
 def _extract_response_text(response: Any) -> str:
+    # OpenAI-compatible response: response.choices[0].message.content
+    choices = getattr(response, "choices", None)
+    if isinstance(choices, list) and choices:
+        message = getattr(choices[0], "message", None)
+        if message is not None:
+            content = getattr(message, "content", None)
+            if isinstance(content, str):
+                return content.strip()
+    # Fallback: plain string content
     content = getattr(response, "content", None)
-    if isinstance(content, list):
-        parts: list[str] = []
-        for item in content:
-            text = getattr(item, "text", None)
-            if isinstance(text, str):
-                parts.append(text)
-            elif isinstance(item, dict) and isinstance(item.get("text"), str):
-                parts.append(item["text"])
-        return "\n".join(parts).strip()
     if isinstance(content, str):
         return content.strip()
     return ""

@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Strata eval scaffold"
 requires-python = ">=3.11"
 dependencies = [
-    "anthropic",
+    "openai",
     "psycopg2-binary",
     "pyyaml",
     "sqlglot",

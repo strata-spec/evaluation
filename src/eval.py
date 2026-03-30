@@ -14,6 +14,7 @@ import psycopg2
 EVAL_MODEL = os.getenv("EVAL_MODEL", "deepseek-chat")
 EVAL_BASE_URL = os.getenv("EVAL_BASE_URL", "https://api.deepseek.com")
 EVAL_API_KEY = os.getenv("EVAL_API_KEY") or os.getenv("DEEPSEEK_API_KEY")
+EVAL_TEMPERATURE = float(os.getenv("EVAL_TEMPERATURE", "0"))  # DeepSeek docs: Coding/Math = 0.0
 
 # Handle imports for both direct script execution and module import
 try:
@@ -214,6 +215,7 @@ def call_agent(
     try:
         response = openai_client.chat.completions.create(
             model=model,
+            temperature=EVAL_TEMPERATURE,
             max_tokens=1024,
             messages=[
                 {"role": "system", "content": system_prompt},

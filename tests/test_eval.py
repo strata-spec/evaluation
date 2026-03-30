@@ -7,7 +7,9 @@ from pathlib import Path
 # Add src directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from eval import fetch_raw_schema, format_smif_context, _strip_sql_fences
+from unittest.mock import MagicMock, patch
+
+from eval import EVAL_TEMPERATURE, call_agent, fetch_raw_schema, format_smif_context, _strip_sql_fences
 
 
 class FormatSmifContextTests(unittest.TestCase):
@@ -301,6 +303,30 @@ class FetchRawSchemaTests(unittest.TestCase):
         schema = fetch_raw_schema("postgresql://invalid:invalid@127.0.0.1:1/does_not_exist")
 
         self.assertEqual(schema, "")
+
+
+class CallAgentTemperatureTests(unittest.TestCase):
+    def test_call_agent_uses_eval_temperature(self) -> None:
+        """call_agent must pass EVAL_TEMPERATURE (default 0) to the API."""
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices[0].message.content = "SELECT 1;"
+        mock_client.chat.completions.create.return_value = mock_response
+
+        call_agent(mock_client, "some-model", "system prompt here")
+
+        _, kwargs = mock_client.chat.completions.create.call_args
+        self.assertIn("temperature", kwargs)
+        self.assertEqual(kwargs["temperature"], EVAL_TEMPERATURE)
+
+    def test_eval_temperature_default_is_zero(self) -> None:
+        """EVAL_TEMPERATURE must default to 0.0 when the env var is not set."""
+        import importlib
+        import eval as eval_module
+        with patch.dict("os.environ", {}, clear=False) as env:
+            env.pop("EVAL_TEMPERATURE", None)
+            importlib.reload(eval_module)
+            self.assertEqual(eval_module.EVAL_TEMPERATURE, 0.0)
 
 
 if __name__ == "__main__":
